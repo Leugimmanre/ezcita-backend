@@ -1,0 +1,17 @@
+# Dependencias de Node.js
+node_modules/
+# Archivos de entorno
+.env
+# Archivos de sistema (macOS)
+.DS_Store
+# Archivos de logs
+logs/
+*.log
+# Directorios de compilación o distribución
+dist/
+build/
+# Archivos de configuración de editores de texto
+.vscode/
+.idea/
+# Archivos de caché
+.cache/

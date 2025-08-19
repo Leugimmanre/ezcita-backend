@@ -1,0 +1,57 @@
+// userRoutes.js
+import { Router } from "express";
+import { UserController } from "../controllers/userController.js";
+import { handleInputErrors } from "../middlewares/handleInputErrors.js";
+import { body, param } from "express-validator";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { tenantMiddleware } from "../middlewares/multi-tenancy/tenantMiddleware.js";
+
+// Crear router
+const router = Router();
+// Primero validamos JWT
+router.use(authMiddleware);
+// Luego resolvemos el tenant
+router.use(tenantMiddleware);
+
+// Crear
+router.post(
+  "/",
+  [
+    body("name").notEmpty(),
+    body("email").isEmail(),
+    body("password").isLength({ min: 6 }),
+    handleInputErrors,
+  ],
+  UserController.createUser
+);
+
+// Obtener todos
+router.get("/", UserController.getAllUsers);
+
+// Obtener uno
+router.get(
+  "/:id",
+  [param("id").isMongoId().withMessage("ID inválido"), handleInputErrors],
+  UserController.getUserById
+);
+
+// Actualizar
+router.put(
+  "/:id",
+  [
+    param("id").isMongoId().withMessage("ID inválido"),
+    body("name").optional(),
+    body("email").optional().isEmail(),
+    handleInputErrors,
+  ],
+  UserController.updateUser
+);
+
+// Eliminar
+router.delete(
+  "/:id",
+  [param("id").isMongoId().withMessage("ID inválido"), handleInputErrors],
+  UserController.deleteUser
+);
+
+export default router;
