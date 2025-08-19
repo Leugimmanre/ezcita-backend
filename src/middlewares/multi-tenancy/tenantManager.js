@@ -1,7 +1,7 @@
 // middlewares/multi-tenancy/tenantManager.js
 import mongoose from "mongoose";
 import ServicesSchema from "../../models/ServicesModel.js";
-import appointmentSettingsModel from "../../models/appointmentSettingsModel.js";
+import { appointmentSettingsSchemaDefinition } from "../../models/AppointmentSettingsModel.js";
 import { appointmentSchemaDefinition } from "../../models/AppointmentModel.js";
 import { userSchemaDefinition } from "../../models/UserModel.js";
 
@@ -78,7 +78,7 @@ class TenantManager {
     }
 
     const conn = await this.getTenantConnection(tenantId);
-    const model = conn.model("AppointmentSettings", appointmentSettingsModel);
+    const model = conn.model("AppointmentSettings", appointmentSettingsSchemaDefinition );
     this.appointmentSettingsModels.set(tenantId, model);
     return model;
   }
