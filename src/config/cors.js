@@ -1,29 +1,24 @@
+// src/config/cors.js
 import dotenv from "dotenv";
-
 dotenv.config();
 
-export const corsConfig = {
-  origin: function (origin, callback) {
-    const whitelist = [
-      process.env.FRONTEND_URL,
-      "http://localhost:5173", // Desarrollo local
-      undefined, // Para permitir solicitudes sin origen (como Postman)
-    ];
+const whitelist = [
+  process.env.FRONTEND_URL,
+  "http://localhost:5173",
+].filter(Boolean);
 
-    // En producción, verifica el origen
-    if (process.env.NODE_ENV === "production") {
-      if (whitelist.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.error(`Origen no permitido: ${origin}`);
-        callback(new Error("Not allowed by CORS"));
-      }
-    } else {
-      // En desarrollo, permitir todos los orígenes
-      callback(null, true);
+export const corsConfig = {
+  origin(origin, callback) {
+    // requests sin Origin (curl, Postman) -> permitir
+    if (!origin) return callback(null, true);
+
+    if (whitelist.includes(origin)) {
+      return callback(null, true);
     }
+    console.error(`CORS bloqueado: ${origin}`);
+    return callback(new Error("Not allowed by CORS"));
   },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  credentials: true, // si usas cookies
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Accept"],
 };
