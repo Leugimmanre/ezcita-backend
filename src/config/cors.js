@@ -1,22 +1,29 @@
+// src/config/cors.js
 import dotenv from "dotenv";
 dotenv.config();
 
-const whitelist = [process.env.FRONTEND_URL, "http://localhost:5173"].filter(
-  Boolean
-);
+const staticWhitelist = [
+  process.env.FRONTEND_URL,
+  "http://localhost:5173",
+].filter(Boolean);
+
+// dominios que aceptas por patrón (Netlify, Vercel, Render static, etc.)
+const allowPattern = [
+  /^https?:\/\/([a-z0-9-]+\.)*netlify\.app$/,
+  /^https?:\/\/([a-z0-9-]+\.)*vercel\.app$/,
+];
 
 export const corsConfig = {
-  // Permitir orígenes del whitelist
-  origin(origin, callback) {
-    if (!origin) return callback(null, true); // curl/Postman
-    if (whitelist.includes(origin)) return callback(null, true);
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // curl/Postman/health checks
+    if (staticWhitelist.includes(origin)) return cb(null, true);
+    if (allowPattern.some((re) => re.test(origin))) return cb(null, true);
     console.error(`CORS bloqueado: ${origin}`);
-    return callback(new Error("Not allowed by CORS"));
+    return cb(new Error("Not allowed by CORS"));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  // ⬇️ Agrega tu header personalizado
+  // Si ESPECIFICAS allowedHeaders, DEBES incluir TODOS los que el cliente manda
   allowedHeaders: ["Content-Type", "Authorization", "Accept", "x-tenant-id"],
-  // (opcional) expón headers si luego los lees en el cliente
   exposedHeaders: ["Authorization"],
 };
