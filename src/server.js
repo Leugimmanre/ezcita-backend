@@ -23,6 +23,7 @@ connectDB().catch((err) => {
 const app = express();
 // 4. Configuración de CORS
 app.use(cors(corsConfig));
+app.options("*", cors(corsConfig));
 // 5. Middlewares básicos
 app.use(express.json());
 app.use(morgan("dev"));
