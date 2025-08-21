@@ -1,8 +1,43 @@
 // src/emails/transport.js
-import resend from "../config/resend.js";
+import resend from "../config/resend.js"; // Instancia de Resend SDK
+
+// Expresión simple para validar emails básicos
+const SIMPLE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * sendMail - interfaz de envío con Resend
+ * parseAddress - admite "email@dom.com" o "Nombre <email@dom.com>"
+ * Devuelve string normalizada o null si inválida
+ */
+function parseAddress(input) {
+  if (!input || typeof input !== "string") return null;
+  const s = input.trim();
+
+  // Caso "Nombre <email@dom.com>"
+  const matchAngle = s.match(/^(.*)<\s*([^>]+)\s*>$/);
+  if (matchAngle) {
+    const name = matchAngle[1].trim().replace(/(^"|"$)/g, "");
+    const email = matchAngle[2].trim();
+    if (!SIMPLE_EMAIL_RE.test(email)) return null;
+    return name ? `${name} <${email}>` : email;
+  }
+
+  // Caso "email@dom.com"
+  if (SIMPLE_EMAIL_RE.test(s)) return s;
+
+  return null;
+}
+
+/**
+ * normaliza direcciones a array válido
+ */
+function normalizeAddresses(value) {
+  if (!value) return [];
+  const arr = Array.isArray(value) ? value : [value];
+  return arr.map(parseAddress).filter(Boolean);
+}
+
+/**
+ * sendMail usando solo Resend
  */
 export async function sendMail({
   from,
@@ -12,31 +47,42 @@ export async function sendMail({
   attachments = [],
   replyTo,
 }) {
-  if (!resend) {
-    throw new Error("[MAIL] RESEND_API_KEY is missing.");
-  }
+  // Normalizar direcciones
+  const fromNorm = parseAddress(from);
+  const toList = normalizeAddresses(to);
+  const replyList = normalizeAddresses(replyTo);
 
-  const toList = Array.isArray(to) ? to : [to];
+  if (!fromNorm) throw new Error("Invalid 'from' address.");
+  if (!toList.length) throw new Error("No valid recipients in 'to'.");
 
-  const rsdAttachments = attachments?.length
-    ? attachments.map((a) => ({
-        filename: a.filename,
-        // Resend recomienda base64
-        content: Buffer.isBuffer(a.content)
-          ? a.content.toString("base64")
-          : Buffer.from(String(a.content), "utf8").toString("base64"),
-      }))
-    : undefined;
-
-  const { data, error } = await resend.emails.send({
-    from,
+  // Construir payload para Resend
+  const payload = {
+    from: fromNorm,
     to: toList,
     subject,
     html,
-    replyTo,
-    attachments: rsdAttachments,
-  });
+  };
 
-  if (error) throw new Error(error.message || "Resend send failed");
-  return data;
+  if (attachments?.length) {
+    payload.attachments = attachments.map((a) => ({
+      filename: a.filename,
+      content:
+        typeof a.content === "string" ? Buffer.from(a.content) : a.content,
+      content_type: a.contentType || "application/octet-stream",
+    }));
+  }
+
+  if (replyList.length > 0) {
+    payload.reply_to = replyList.length === 1 ? replyList[0] : replyList;
+  }
+
+  const res = await resend.emails.send(payload);
+
+  if (res.error) {
+    throw new Error(res.error?.message || "Resend send error");
+  }
+
+  return res;
 }
+
+export default sendMail;
