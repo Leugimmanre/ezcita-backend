@@ -9,7 +9,7 @@ const port = Number(process.env.SMTP_PORT || 587);
 const transporter = nodemailer.createTransport({
   host,
   port,
-  secure: port === 465, // true solo si usas 465
+  secure: true,
   auth: {
     user: process.env.SMTP_USER, // ej: apismtp@mailtrap.io (exacto del panel)
     pass: process.env.SMTP_PASSWORD, // tu API token de Email Sending
