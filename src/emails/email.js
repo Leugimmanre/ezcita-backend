@@ -1,10 +1,10 @@
-// src/emails/email.js
+// src/emails/transport.js
 import { buildTemplateData } from "../emails/appointmentTemplates.js";
-import transporter from "../config/nodemailer.js";
 import { buildICS } from "../utils/datetime.js";
+import { sendMail } from "./transport.js";
 
-const fromName = process.env.MAIL_FROM_NAME || "defaultName";
-const fromAddress = process.env.MAIL_FROM_ADDRESS || "no-reply@barbershop.test";
+const fromName = process.env.MAIL_FROM_NAME || "BarberShop";
+const fromAddress = process.env.MAIL_FROM_ADDRESS || "no-reply@martinezdev.es";
 
 const subjects = {
   created: "Tu cita ha sido creada",
@@ -15,18 +15,16 @@ const subjects = {
   completed: "Cita completada",
 };
 
-
 export const sendAppointmentEmail = async ({
-  type, // "created" | "updated" | "cancelled" | "deleted" | "reactivated" | "completed"
-  to, // email del cliente
-  user, // { name, ... }
-  appointment, // cita (date, duration, totalPrice, notes, _id)
-  services = [], // [{name, price, duration}]
-  settings = {}, // { brandName, timezone, contactEmail, ... }
+  type,
+  to,
+  user,
+  appointment,
+  services = [],
+  settings = {},
 }) => {
   const subject = subjects[type] || "Actualización de cita";
 
-  // HTML
   const html = buildTemplateData({
     type,
     user,
@@ -35,7 +33,6 @@ export const sendAppointmentEmail = async ({
     settings,
   });
 
-  // ICS adjunto (REQUEST en create/update, CANCEL en cancel/delete)
   const needsICS = ["created", "updated", "cancelled", "deleted"].includes(
     type
   );
@@ -63,23 +60,15 @@ export const sendAppointmentEmail = async ({
 
     attachments.push({
       filename: "cita.ics",
-      content: ics,
+      content: Buffer.from(ics, "utf8"),
       contentType: "text/calendar; charset=utf-8",
     });
   }
 
-  const from = `"${fromName}" <${fromAddress}>`;
+  const from = `${fromName} <${fromAddress}>`;
   const replyTo = settings?.contactEmail || fromAddress;
 
-  return transporter.sendMail({
-    from,
-    to,
-    replyTo,
-    subject,
-    html,
-    attachments,
-  });
+  return sendMail({ from, to, subject, html, attachments, replyTo });
 };
 
 export default sendAppointmentEmail;
-
