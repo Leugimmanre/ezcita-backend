@@ -144,6 +144,7 @@ const notesSection = (notes) =>
 `
     : "";
 
+// El padre es appointmentTemplates.js
 export const appointmentTemplates = {
   created: ({ name, when, services, total, notes, brand, ctaUrl }) =>
     baseWrapper(`

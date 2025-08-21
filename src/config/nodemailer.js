@@ -1,5 +1,7 @@
 // src/config/nodemailer.js
 import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+dotenv.config();
 
 const host = process.env.SMTP_HOST || "live.smtp.mailtrap.io";
 const port = Number(process.env.SMTP_PORT || 587);
