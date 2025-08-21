@@ -1,6 +1,5 @@
 // src/controllers/appointmentController.js
-import sendAppointmentEmail from "../emails/email.js";
-
+import { sendAppointmentEmail } from "../emails/email.js";
 
 export class AppointmentController {
   // Crear nueva cita

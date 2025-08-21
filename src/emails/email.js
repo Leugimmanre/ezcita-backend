@@ -1,10 +1,8 @@
-// src/emails/transport.js
+// src/emails/email.js
+import { resolveFrom } from "./from.js";
 import { buildTemplateData } from "../emails/appointmentTemplates.js";
 import { buildICS } from "../utils/datetime.js";
 import { sendMail } from "./transport.js";
-
-const fromName = process.env.MAIL_FROM_NAME || "BarberShop";
-const fromAddress = process.env.MAIL_FROM_ADDRESS || "no-reply@martinezdev.es";
 
 const subjects = {
   created: "Tu cita ha sido creada",
@@ -24,7 +22,6 @@ export const sendAppointmentEmail = async ({
   settings = {},
 }) => {
   const subject = subjects[type] || "Actualización de cita";
-
   const html = buildTemplateData({
     type,
     user,
@@ -65,8 +62,8 @@ export const sendAppointmentEmail = async ({
     });
   }
 
-  const from = `${fromName} <${fromAddress}>`;
-  const replyTo = settings?.contactEmail || fromAddress;
+  const from = resolveFrom(); // 👈 aquí, una sola fuente de verdad
+  const replyTo = settings?.contactEmail || from.match(/<(.+)>/)?.[1] || from;
 
   return sendMail({ from, to, subject, html, attachments, replyTo });
 };
