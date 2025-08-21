@@ -1,3 +1,4 @@
+// src/emails/appointmentTemplates.js
 import { formatDateTime } from "../utils/datetime.js";
 
 const currency = (n = 0) =>
@@ -144,7 +145,7 @@ const notesSection = (notes) =>
 `
     : "";
 
-// El padre es appointmentTemplates.js
+// -- Plantillas (no contienen defaults de marca; siempre usan brand.name) --
 export const appointmentTemplates = {
   created: ({ name, when, services, total, notes, brand, ctaUrl }) =>
     baseWrapper(`
@@ -164,7 +165,9 @@ export const appointmentTemplates = {
         color: #334155;
         margin-bottom: 24px;
       ">
-        Hola ${name}, tu cita en <strong style="color: #1e40af;">${brand}</strong> 
+        Hola ${name}, tu cita en <strong style="color: #1e40af;">${
+      brand.name
+    }</strong> 
         ha sido creada correctamente.
       </p>
     </div>
@@ -208,7 +211,9 @@ export const appointmentTemplates = {
         color: #334155;
         margin-bottom: 24px;
       ">
-        Hola ${name}, hemos actualizado los detalles de tu cita en <strong style="color: #1e40af;">${brand}</strong>.
+        Hola ${name}, hemos actualizado los detalles de tu cita en <strong style="color: #1e40af;">${
+      brand.name
+    }</strong>.
       </p>
     </div>
     
@@ -251,7 +256,9 @@ export const appointmentTemplates = {
         color: #334155;
         margin-bottom: 24px;
       ">
-        Hola ${name}, tu cita en <strong style="color: #1e40af;">${brand}</strong> programada para 
+        Hola ${name}, tu cita en <strong style="color: #1e40af;">${
+      brand.name
+    }</strong> programada para 
         <strong>${when}</strong> ha sido <strong style="color: #dc2626;">cancelada</strong>.
       </p>
       
@@ -291,7 +298,9 @@ export const appointmentTemplates = {
         color: #334155;
         margin-bottom: 24px;
       ">
-        Hola ${name}, se ha eliminado la cita en <strong style="color: #1e40af;">${brand}</strong> 
+        Hola ${name}, se ha eliminado la cita en <strong style="color: #1e40af;">${
+      brand.name
+    }</strong> 
         que estaba programada para <strong>${when}</strong>.
       </p>
       
@@ -329,7 +338,9 @@ export const appointmentTemplates = {
         color: #334155;
         margin-bottom: 24px;
       ">
-        Hola ${name}, tu cita en <strong style="color: #1e40af;">${brand}</strong> 
+        Hola ${name}, tu cita en <strong style="color: #1e40af;">${
+      brand.name
+    }</strong> 
         ha sido reactivada con éxito.
       </p>
       
@@ -382,7 +393,9 @@ export const appointmentTemplates = {
         color: #334155;
         margin-bottom: 24px;
       ">
-        ¡Gracias ${name}! Tu cita en <strong style="color: #1e40af;">${brand}</strong> 
+        ¡Gracias ${name}! Tu cita en <strong style="color: #1e40af;">${
+      brand.name
+    }</strong> 
         del <strong>${when}</strong> ha sido completada con éxito.
       </p>
       
@@ -420,22 +433,30 @@ export const appointmentTemplates = {
   `),
 };
 
+/**
+ * buildTemplateData
+ * - Recibe brand centralizada (sin defaults aquí)
+ * - Formatea "when" con la tz de brand
+ */
 export const buildTemplateData = ({
   type,
   user,
   appointment,
-  services,
-  settings,
+  services = [],
+  brand,
 }) => {
-  const tz = settings?.timezone || process.env.DEFAULT_TZ || "Europe/Madrid";
-  const when = formatDateTime(appointment.date, tz);
-  const brand = settings?.brandName || settings?.businessName || "BarberShop";
-  const ctaUrl =
-    process.env.FRONTEND_URL &&
-    `${process.env.FRONTEND_URL}/appointments/my-appointments`;
+  // -- fecha/hora con la tz de la marca --
+  const when = formatDateTime(appointment.date, brand.timezone);
 
+  // URL CTA desde la config de marca (si existe)
+  const ctaUrl = brand.frontendUrl
+    ? `${brand.frontendUrl}/appointments/my-appointments`
+    : "";
+
+  // Total: usa appointment.totalPrice o suma services
   const total =
-    appointment.totalPrice ?? services?.reduce((s, x) => s + x.price, 0) ?? 0;
+    appointment.totalPrice ??
+    services.reduce((acc, s) => acc + (s.price || 0), 0);
 
   const base = {
     name: user?.name || "cliente",

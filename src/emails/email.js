@@ -3,6 +3,7 @@ import { resolveFrom } from "./from.js";
 import { buildTemplateData } from "../emails/appointmentTemplates.js";
 import { buildICS } from "../utils/datetime.js";
 import { sendMail } from "./transport.js";
+import { resolveBrand } from "../config/brand.js";
 
 const subjects = {
   created: "Tu cita ha sido creada",
@@ -21,18 +22,22 @@ export const sendAppointmentEmail = async ({
   services = [],
   settings = {},
 }) => {
+  // -- Marca centralizada (sin hardcodeo) --
+  const brand = resolveBrand(settings); // { name, domain, contactEmail, timezone, frontendUrl }
+
   const subject = subjects[type] || "Actualización de cita";
+
+  // HTML usando marca y tz centralizados
   const html = buildTemplateData({
     type,
     user,
     appointment,
     services,
-    settings,
+    brand,
   });
 
-  const needsICS = ["created", "updated", "cancelled", "deleted"].includes(
-    type
-  );
+  // Adjuntar ICS según el tipo
+  const needsICS = ["created", "updated", "cancelled", "deleted"].includes(type);
   const attachments = [];
 
   if (needsICS) {
@@ -40,14 +45,12 @@ export const sendAppointmentEmail = async ({
     const end = new Date(start);
     end.setMinutes(end.getMinutes() + (appointment.duration || 30));
 
-    const method = ["cancelled", "deleted"].includes(type)
-      ? "CANCEL"
-      : "REQUEST";
-    const summary = `Cita - ${settings?.brandName || "BarberShop"}`;
+    const method = ["cancelled", "deleted"].includes(type) ? "CANCEL" : "REQUEST";
+    const summary = `Cita - ${brand.name}`;
     const description = (appointment?.notes || "").slice(0, 200);
 
     const ics = buildICS({
-      uid: `${appointment._id}@${settings?.brandDomain || "ezcita"}`,
+      uid: `${appointment._id}@${brand.domain}`,
       start,
       end,
       summary,
@@ -62,8 +65,8 @@ export const sendAppointmentEmail = async ({
     });
   }
 
-  const from = resolveFrom(); // 👈 aquí, una sola fuente de verdad
-  const replyTo = settings?.contactEmail || from.match(/<(.+)>/)?.[1] || from;
+  const from = resolveFrom();
+  const replyTo = brand.contactEmail || from.match(/<(.+)>/)?.[1] || from;
 
   return sendMail({ from, to, subject, html, attachments, replyTo });
 };

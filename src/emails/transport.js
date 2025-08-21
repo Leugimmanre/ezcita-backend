@@ -1,18 +1,8 @@
 // src/emails/transport.js
-import resend from "../config/resend.js"; // SDK oficial
-import transporter from "../config/nodemailer.js"; // SMTP (fallback)
-
-const MODE = (process.env.EMAIL_TRANSPORT || "resend").toLowerCase();
+import resend from "../config/resend.js";
 
 /**
- * sendMail - interfaz común para ambos transportes
- * @param {Object} p
- * @param {string} p.from        'Nombre <remitente@dominio>'
- * @param {string|string[]} p.to
- * @param {string} p.subject
- * @param {string} p.html
- * @param {Array<{filename:string, content:Buffer|string, contentType?:string}>} [p.attachments]
- * @param {string} [p.replyTo]
+ * sendMail - interfaz de envío con Resend
  */
 export async function sendMail({
   from,
@@ -22,36 +12,29 @@ export async function sendMail({
   attachments = [],
   replyTo,
 }) {
-  if (MODE === "smtp") {
-    // 📨 SMTP via Nodemailer
-    return transporter.sendMail({
-      from,
-      to,
-      subject,
-      html,
-      replyTo,
-      attachments: attachments.map((a) => ({
-        filename: a.filename,
-        content: a.content,
-        contentType: a.contentType, // opcional
-      })),
-    });
+  if (!resend) {
+    throw new Error("[MAIL] RESEND_API_KEY is missing.");
   }
 
-  // 🚀 Resend SDK (por defecto)
+  const toList = Array.isArray(to) ? to : [to];
+
+  const rsdAttachments = attachments?.length
+    ? attachments.map((a) => ({
+        filename: a.filename,
+        // Resend recomienda base64
+        content: Buffer.isBuffer(a.content)
+          ? a.content.toString("base64")
+          : Buffer.from(String(a.content), "utf8").toString("base64"),
+      }))
+    : undefined;
+
   const { data, error } = await resend.emails.send({
     from,
-    to,
+    to: toList,
     subject,
     html,
     replyTo,
-    attachments: attachments.map((a) => ({
-      filename: a.filename,
-      // Resend acepta Buffer o string; normalizamos a Buffer
-      content: Buffer.isBuffer(a.content)
-        ? a.content
-        : Buffer.from(String(a.content), "utf8"),
-    })),
+    attachments: rsdAttachments,
   });
 
   if (error) throw new Error(error.message || "Resend send failed");
