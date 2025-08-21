@@ -1,33 +1,21 @@
 // src/config/nodemailer.js
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
-dotenv.config();
 
-// Configuramos SMTP de Mailtrap Live
+const host = process.env.SMTP_HOST || "live.smtp.mailtrap.io";
+const port = Number(process.env.SMTP_PORT || 587);
+
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "live.smtp.mailtrap.io",
-  port: Number(process.env.SMTP_PORT) || 587, // 587 = STARTTLS, 465 = TLS directo
-  secure: Number(process.env.SMTP_PORT) === 465, // true si usas 465
+  host,
+  port,
+  secure: port === 465, // true solo si usas 465
   auth: {
-    user: process.env.SMTP_USER, // Usuario exacto del panel Mailtrap Live
-    pass: process.env.SMTP_PASSWORD, // Token SMTP de Mailtrap Live
+    user: process.env.SMTP_USER, // ej: apismtp@mailtrap.io (exacto del panel)
+    pass: process.env.SMTP_PASSWORD, // tu API token de Email Sending
   },
-  requireTLS: true, // fuerza STARTTLS en 587
-  tls: {
-    minVersion: "TLSv1.2",
-    servername: "live.smtp.mailtrap.io",
-  },
+  requireTLS: true, // forzar STARTTLS en 587/2525/25
+  tls: { minVersion: "TLSv1.2", servername: host }, // TLS moderno
+  logger: true, // temporal: logs en consola de Render
+  debug: true, // temporal: logs SMTP detallados
 });
 
-// Verificación opcional
-transporter
-  .verify()
-  .then(() => {
-    console.log("Conexión SMTP con Mailtrap Live lista");
-  })
-  .catch((err) => {
-    console.error("Error en conexión SMTP:", err.message);
-  });
-
 export default transporter;
-
