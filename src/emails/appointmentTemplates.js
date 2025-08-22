@@ -8,199 +8,179 @@ const currency = (n = 0) =>
   );
 
 const baseWrapper = (inner, styleType = "confirmation") => `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lista de Servicios Mejorada</title>
+    <title>Notificación de Cita</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8fafc;
-            color: #334155;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-        }
-        
-        .container {
-            max-width: 650px;
-            width: 100%;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            padding: 30px;
-            border: 1px solid #e2e8f0;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #1e40af;
-            margin-bottom: 25px;
-            font-weight: 700;
-            font-size: 28px;
-        }
-        
-        .services-container {
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            overflow: hidden;
-            margin: 25px 0;
-            background: white;
-        }
-        
-        .services-header {
-            display: flex;
-            justify-content: space-between;
-            padding: 16px 20px;
-            background: #f1f5f9;
-            font-weight: 600;
-            color: #334155;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        
-        .services-header span {
-            flex: 1;
-        }
-        
-        .service-name {
-            text-align: left;
-        }
-        
-        .service-price {
-            text-align: right;
-        }
-        
-        .service-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 14px 20px;
-            border-bottom: 1px solid #f1f5f9;
-            align-items: center;
-        }
-        
-        .service-item:last-child {
-            border-bottom: none;
-        }
-        
-        .service-item span {
-            flex: 1;
-        }
-        
-        .item-name {
-            text-align: left;
-            color: #334155;
-        }
-        
-        .item-price {
-            text-align: right;
-            color: #1e40af;
-            font-weight: 600;
-        }
-        
-        .total-container {
-            display: flex;
-            justify-content: space-between;
-            padding: 18px 20px;
-            background: #f8fafc;
-            font-weight: 700;
-            font-size: 18px;
-            border-top: 2px dashed #e2e8f0;
-            color: #1e293b;
-        }
-        
-        .preview-note {
-            text-align: center;
-            color: #64748b;
-            font-style: italic;
-            margin-top: 30px;
-            padding: 15px;
-            background: #f1f5f9;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Lista de Servicios Mejorada</h1>
-        
-        <div class="services-container">
-            <div class="services-header">
-                <span class="service-name">Servicio</span>
-                <span class="service-price">Precio</span>
-            </div>
-            
-            <div class="service-item">
-                <span class="item-name">Manicura Básica</span>
-                <span class="item-price">20,00 € (30 min)</span>
-            </div>
-            
-            <div class="service-item">
-                <span class="item-name">Pedicura Spa</span>
-                <span class="item-price">35,00 € (45 min)</span>
-            </div>
-            
-            <div class="service-item">
-                <span class="item-name">Tratamiento Facial Completo</span>
-                <span class="item-price">60,00 € (60 min)</span>
-            </div>
-            
-            <div class="service-item">
-                <span class="item-name">Masaje Relajante</span>
-                <span class="item-price">50,00 € (50 min)</span>
-            </div>
-            
-            <div class="total-container">
-                <span>Total:</span>
-                <span>165,00 €</span>
-            </div>
-        </div>
-        
-        <div class="preview-note">
-            Esta es una vista previa de cómo se verá la lista de servicios después de las mejoras.
-        </div>
-    </div>
+      ${commonStyles}
+      ${styleType === "confirmation" ? confirmationStyles : ""}
+      .appointment-card {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 24px;
+        margin: 24px 0;
+        border: 1px solid #e2e8f0;
+      }
+      .appointment-details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .detail-item {
+        flex: 1;
+        min-width: 200px;
+      }
+      .detail-label {
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 6px;
+      }
+      .detail-value {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1e293b;
+      }
+      .services-container {
+        margin: 20px 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+.services-container {
+  margin: 20px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
 
-    <!-- Aquí iría la implementación de la función servicesList si fuera necesario en el frontend.
-         En el backend, esta función debe ser implementada en JavaScript, no dentro del HTML. -->
-</body>
-</html>
+/* Cabecera en dos columnas */
+.services-header {
+  display: table;
+  width: 100%;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 600;
+}
+.services-header .cell-name,
+.services-header .cell-price {
+  display: table-cell;
+  padding: 14px 20px;
+  vertical-align: middle;
+}
+.services-header .cell-name { width: 60%; }
+.services-header .cell-price { width: 40%; text-align: right; }
+
+/* Tabla de filas */
+.services-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.services-table .cell-name,
+.services-table .cell-price {
+  padding: 12px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+.services-table .cell-name { width: 60%; color: #1e293b; }
+.services-table .cell-price { width: 40%; text-align: right; white-space: nowrap; color: #1e293b; }
+.services-table tr:last-child .cell-name,
+.services-table tr:last-child .cell-price { border-bottom: none; }
+
+      .service-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 20px;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .service-item:last-child {
+        border-bottom: none;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .notes-container {
+        margin-top: 20px;
+      }
+      .notes-label {
+        font-size: 14px;
+        color: #64748b;
+        margin-bottom: 6px;
+      }
+      .notes-content {
+        background: white;
+        border-radius: 8px;
+        padding: 14px;
+        border: 1px solid #e2e8f0;
+        font-size: 15px;
+        line-height: 1.5;
+        color: #334155;
+      }
+      .brand-header {
+        text-align: center;
+        padding: 20px 0;
+        background: linear-gradient(135deg, #4361ee, #3a0ca3);
+        color: white;
+      }
+      .brand-name {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="brand-header">
+        <h1 class="brand-name">${inner.brandName || "Salón Belleza"}</h1>
+      </div>
+      <div class="content">
+        ${inner.content}
+      </div>
+      <div class="footer">
+        <p>Si no esperabas este correo, puedes ignorarlo.</p>
+        <p class="app-name">© ${new Date().getFullYear()} ${
+  inner.brandName || "Salón Belleza"
+}</p>
+      </div>
+    </div>
+  </body>
+  </html>
 `;
 
 const servicesList = (services = []) => {
   if (!services.length) return "";
 
-  const items = services
+  const rows = services
     .map(
       (s) => `
-    <div class="service-item">
-      <span class="item-name">${s.name}</span>
-      <span class="item-price"><strong>${currency(s.price)}</strong> (${
+        <tr class="service-row">
+          <td class="cell-name">${s.name}</td>
+          <td class="cell-price"><strong>${currency(s.price)}</strong> (${
         s.duration
-      } min)</span>
-    </div>
-  `
+      } min)</td>
+        </tr>`
     )
     .join("");
-
-  const total = services.reduce((sum, service) => sum + service.price, 0);
 
   return `
     <div class="services-container">
       <div class="services-header">
-        <span class="service-name">Servicio</span>
-        <span class="service-price">Precio</span>
+        <span class="cell-name">Servicio</span>
+        <span class="cell-price">Precio</span>
       </div>
-      ${items}
-      <div class="total-container">
-        <span>Total:</span>
-        <span>${currency(total)}</span>
-      </div>
+      <table class="services-table" role="presentation" cellpadding="0" cellspacing="0">
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
     </div>
   `;
 };
