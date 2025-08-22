@@ -144,14 +144,19 @@ export const AuthController = {
       const user = await req.User.findOne({
         email: String(email).toLowerCase().trim(),
         tenantId,
-      }).select("+password +tenantId");
+      }).select("+password +tenantId +verified");
 
       if (!user) {
         return res.status(404).json({ message: "Usuario no encontrado" });
       }
 
-      // Opcional: exigir verificación antes de login
-      // if (!user.verified) return res.status(403).json({ message: "Verifica tu cuenta antes de iniciar sesión" });
+      // Exigir verificación antes de login
+      if (!user.verified) {
+        return res.status(403).json({
+          code: "ACCOUNT_NOT_VERIFIED",
+          message: "Verifica tu cuenta antes de iniciar sesión",
+        });
+      }
 
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {

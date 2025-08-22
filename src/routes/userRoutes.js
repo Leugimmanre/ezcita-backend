@@ -5,11 +5,14 @@ import { handleInputErrors } from "../middlewares/handleInputErrors.js";
 import { body, param } from "express-validator";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { tenantMiddleware } from "../middlewares/multi-tenancy/tenantMiddleware.js";
+import { requireVerified } from "../middlewares/requireVerified.js";
 
 // Crear router
 const router = Router();
 // Primero validamos JWT
 router.use(authMiddleware);
+// Luego validamos que el usuario esté verificado
+router.use(requireVerified);
 // Luego resolvemos el tenant
 router.use(tenantMiddleware);
 
