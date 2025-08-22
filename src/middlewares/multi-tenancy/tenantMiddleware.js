@@ -20,6 +20,7 @@ export const tenantMiddleware = async (req, res, next) => {
       tenantId
     );
     req.Appointments = await tenantManager.getAppointmentModel(tenantId);
+    req.BrandSettings = await tenantManager.getBrandSettingsModel(tenantId);
 
     // 4. Añade tenantId al request para uso posterior
     req.tenantId = tenantId;

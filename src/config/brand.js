@@ -1,31 +1,85 @@
 // src/config/brand.js
-// -- Configuración centralizada de marca --
-// ⚠️ Aquí definimos la única "fuente de verdad" para nombre, dominio, email de contacto, tz y frontend.
+const BRAND_CACHE = new Map(); // { tenantId: { data, expiresAt } }
+const TTL_MS = 60_000;
 
-export const BRAND_DEFAULTS = {
-  // Nombre visible de la marca (puedes poner un valor por defecto vía ENV)
-  name: process.env.BRAND_NAME || "Mi Negocio",
-  // Dominio usado en UID del .ics, etc.
-  domain: process.env.BRAND_DOMAIN || "ezcita",
-  // Email de contacto por defecto (cae al SMTP_USER si no hay otro)
-  contactEmail: process.env.BRAND_CONTACT_EMAIL || process.env.SMTP_USER || "",
-  // Zona horaria por defecto
-  timezone: process.env.DEFAULT_TZ || "Europe/Madrid",
-  // URL del frontend (para CTAs)
-  frontendUrl: process.env.FRONTEND_URL || "",
-};
+function getCached(tenantId) {
+  const item = BRAND_CACHE.get(tenantId);
+  if (!item) return null;
+  if (Date.now() > item.expiresAt) {
+    BRAND_CACHE.delete(tenantId);
+    return null;
+  }
+  return item.data;
+}
+function setCached(tenantId, data) {
+  BRAND_CACHE.set(tenantId, { data, expiresAt: Date.now() + TTL_MS });
+}
 
 /**
- * resolveBrand - mezcla settings dinámicos (por cliente/tenant) con defaults
- * @param {Object} settings - puede venir de BD o runtime
- * @returns {{name:string, domain:string, contactEmail:string, timezone:string, frontendUrl:string}}
+ * Lee marca desde BD por tenant (asíncrono)
+ */
+export async function resolveBrandFromDB(BrandSettingsModel, tenantId) {
+  if (!BrandSettingsModel || !tenantId) {
+    throw new Error("BrandSettingsModel and tenantId are required");
+  }
+  const cached = getCached(tenantId);
+  if (cached) return cached;
+
+  const doc = await BrandSettingsModel.findOne({ tenantId }).lean();
+  const data = {
+    name: doc?.brandName ?? null,
+    domain: doc?.brandDomain ?? null,
+    contactEmail: doc?.contactEmail ?? null,
+    timezone: doc?.timezone ?? null,
+    frontendUrl: doc?.frontendUrl ?? null,
+    logoUrl: doc?.logo?.url ?? null,
+  };
+  setCached(tenantId, data);
+  return data;
+}
+
+/**
+ * Igual que arriba pero exige mínimos
+ */
+export async function resolveBrandStrict(BrandSettingsModel, tenantId) {
+  const b = await resolveBrandFromDB(BrandSettingsModel, tenantId);
+  const missing = [];
+  if (!b.name) missing.push("brandName");
+  if (!b.contactEmail) missing.push("contactEmail");
+  if (!b.timezone) missing.push("timezone");
+  if (missing.length) {
+    const error = new Error(
+      `Missing brand settings: ${missing.join(", ")} (tenantId=${tenantId})`
+    );
+    error.code = "BRAND_SETTINGS_INCOMPLETE";
+    throw error;
+  }
+  return b;
+}
+
+/**
+ * Invalidar caché tras PUT/POST/DELETE
+ */
+export function invalidateBrandCache(tenantId) {
+  BRAND_CACHE.delete(tenantId);
+}
+
+/**
+ * 🔁 COMPAT: versión síncrona con la MISMA firma anterior.
+ * Usa datos ya cargados (por ejemplo desde el frontend o req.brand).
+ * No consulta BD. No usa ENV. Devuelve null si falta.
+ *
+ * Esto permite que el código existente que hacía:
+ *   const brand = resolveBrand(settings)
+ * siga funcionando mientras migras a la versión asíncrona.
  */
 export function resolveBrand(settings = {}) {
   return {
-    name: settings.brandName || settings.businessName || BRAND_DEFAULTS.name,
-    domain: settings.brandDomain || BRAND_DEFAULTS.domain,
-    contactEmail: settings.contactEmail || BRAND_DEFAULTS.contactEmail,
-    timezone: settings.timezone || BRAND_DEFAULTS.timezone,
-    frontendUrl: settings.frontendUrl || BRAND_DEFAULTS.frontendUrl,
+    name: settings.brandName ?? settings.businessName ?? null,
+    domain: settings.brandDomain ?? null,
+    contactEmail: settings.contactEmail ?? null,
+    timezone: settings.timezone ?? null,
+    frontendUrl: settings.frontendUrl ?? null,
+    logoUrl: settings.logo?.url ?? settings.logoUrl ?? null,
   };
 }

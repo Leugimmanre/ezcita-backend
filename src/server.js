@@ -11,6 +11,8 @@ import appointmentSettingsRouter from "./routes/appointmentSettingsRoutes.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import brandSettingsRoutes from "./routes/brandSettingsRoutes.js";
+import path from "path";
 
 // 1. Configuración inicial
 dotenv.config();
@@ -34,6 +36,9 @@ app.use("/api/appointment-settings", appointmentSettingsRouter);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/brand", brandSettingsRoutes);
+// Sirve archivos estáticos de uploads (solo lectura pública)
+app.use("/static", express.static(path.resolve("uploads")));
 
 // 7. Manejo de errores global
 app.use((err, req, res, next) => {
@@ -54,7 +59,8 @@ app.get("/api/health", (req, res) => {
 });
 
 // 9. Cron Job para eliminar citas canceladas hace más de 30 minutos
-cron.schedule("*/5 * * * *", async () => { // se ejecuta cada 5 minutos
+cron.schedule("*/5 * * * *", async () => {
+  // se ejecuta cada 5 minutos
   const cutoff = new Date();
   cutoff.setMinutes(cutoff.getMinutes() - 30);
 

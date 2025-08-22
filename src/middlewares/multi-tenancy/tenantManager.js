@@ -4,6 +4,7 @@ import ServicesSchema from "../../models/ServicesModel.js";
 import { appointmentSettingsSchemaDefinition } from "../../models/AppointmentSettingsModel.js";
 import { appointmentSchemaDefinition } from "../../models/AppointmentModel.js";
 import { userSchemaDefinition } from "../../models/UserModel.js";
+import BrandSettingsModelGlobal from "../../models/BrandSettingsModel.js";
 
 class TenantManager {
   constructor() {
@@ -12,6 +13,7 @@ class TenantManager {
     this.serviceModels = new Map();
     this.appointmentSettingsModels = new Map();
     this.appointmentModels = new Map();
+    this.brandSettingsModels  = new Map();
   }
 
   async getTenantConnection(tenantId) {
@@ -78,7 +80,10 @@ class TenantManager {
     }
 
     const conn = await this.getTenantConnection(tenantId);
-    const model = conn.model("AppointmentSettings", appointmentSettingsSchemaDefinition );
+    const model = conn.model(
+      "AppointmentSettings",
+      appointmentSettingsSchemaDefinition
+    );
     this.appointmentSettingsModels.set(tenantId, model);
     return model;
   }
@@ -95,6 +100,19 @@ class TenantManager {
     return model;
   }
 
+  // Obtiene o crea el modelo de configuración de marca para un tenant
+  async getBrandSettingsModel(tenantId) {
+    if (this.brandSettingsModels.has(tenantId)) {
+      return this.brandSettingsModels.get(tenantId);
+    }
+    const conn = await this.getTenantConnection(tenantId);
+    const schema = BrandSettingsModelGlobal.schema; // viene del modelo global
+    const model =
+      conn.models.BrandSettings || conn.model("BrandSettings", schema);
+    this.brandSettingsModels.set(tenantId, model);
+    return model;
+  }
+
   // Obtiene o crea el modelo de configuración de citas para un tenant
   async closeAllConnections() {
     for (const [tenantId, conn] of this.connections) {
@@ -102,8 +120,11 @@ class TenantManager {
       console.log(`Connection closed for tenant: ${tenantId}`);
     }
     this.connections.clear();
+    this.userModels.clear();
     this.serviceModels.clear();
     this.appointmentSettingsModels.clear();
+    this.appointmentModels.clear();
+    this.brandSettingsModels.clear();
   }
 }
 // Singleton para gestionar todas las conexiones
