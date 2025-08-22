@@ -10,7 +10,7 @@ export function resolveFrom() {
         `MAIL_FROM has invalid format: "${raw}". Use "name <email@domain>" or "email@domain".`
       );
     }
-    return raw; // ✅ ya viene formateado
+    return raw; // Ya viene formateado
   }
 
   const name = (process.env.MAIL_FROM_NAME || "").trim();
