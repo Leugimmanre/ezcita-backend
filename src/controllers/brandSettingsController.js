@@ -3,17 +3,38 @@ import path from "path";
 import fs from "fs/promises";
 import { invalidateBrandCache } from "../config/brand.js";
 
-// 🧩 Helper: construye la URL pública /static/...
-function buildPublicUrl(req, fileRelativePath) {
+// 🧰 Toma sólo claves definidas (sin pisar con undefined)
+function pickDefined(obj, keys) {
+  const out = {};
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== undefined) {
+      out[k] = obj[k];
+    }
+  }
+  return out;
+}
+
+// 🧩 URL pública relativa /static/...
+function buildPublicUrl(fileRelativePath) {
   // fileRelativePath debe ser relativo a 'uploads' (ej: tenants/<tenantId>/brand/logo.png)
   return `/static/${fileRelativePath.replace(/\\/g, "/")}`;
+}
+
+// 🌐 (Opcional) URL absoluta, útil en emails si el cliente abre fuera de tu dominio
+function buildAbsoluteUrl(req, relativeUrl) {
+  const proto = (req.headers["x-forwarded-proto"] || req.protocol || "http")
+    .split(",")[0]
+    .trim();
+  const host = req.headers["x-forwarded-host"] || req.get("host");
+  if (!host) return relativeUrl; // fallback
+  return `${proto}://${host}${relativeUrl}`;
 }
 
 export const BrandSettingsController = {
   async get(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
-      const doc = await BrandSettings.findOne({ tenantId });
+      const doc = await BrandSettings.findOne({ tenantId }).lean();
       return res.json({ success: true, data: doc || null });
     } catch (e) {
       next(e);
@@ -23,14 +44,19 @@ export const BrandSettingsController = {
   async upsert(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
-      const { brandName, brandDomain, contactEmail, timezone, frontendUrl } =
-        req.body;
+
+      // Sólo guardamos lo que venga definido en el body
+      const setDoc = pickDefined(req.body, [
+        "brandName",
+        "brandDomain",
+        "contactEmail",
+        "timezone",
+        "frontendUrl",
+      ]);
 
       const doc = await BrandSettings.findOneAndUpdate(
         { tenantId },
-        {
-          $set: { brandName, brandDomain, contactEmail, timezone, frontendUrl },
-        },
+        { $set: setDoc },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
 
@@ -75,11 +101,16 @@ export const BrandSettingsController = {
         } catch {} // ignore si no existe
       }
 
+      const relativeUrl = buildPublicUrl(relative);
+      const absoluteUrl = buildAbsoluteUrl(req, relativeUrl);
+
       const payload = {
-        url: buildPublicUrl(req, relative),
+        url: relativeUrl, // conserva la relativa para frontend
         filename: path.basename(file.path),
         mimetype: file.mimetype,
         size: file.size,
+        // opcional: absoluteUrl si quieres guardarla también
+        // absoluteUrl,
       };
 
       const doc = await BrandSettings.findOneAndUpdate(
@@ -89,7 +120,12 @@ export const BrandSettingsController = {
       );
 
       invalidateBrandCache(tenantId);
-      res.json({ success: true, data: doc.logo });
+
+      // Devuelvo ambas URLs por comodidad del cliente
+      res.json({
+        success: true,
+        data: { ...doc.logo, absoluteUrl },
+      });
     } catch (e) {
       next(e);
     }
