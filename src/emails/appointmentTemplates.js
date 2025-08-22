@@ -199,7 +199,12 @@ const infoCard = (content) => `
 
 const ctaButton = (url, text) => `
   <div class="button-container">
-    <a href="${url}" class="button">${text}</a>
+    <a href="${url}" class="button" 
+       style="display:inline-block; background:#2563eb; color:#ffffff; 
+              padding:12px 20px; border-radius:6px; 
+              text-decoration:none; font-weight:bold; font-size:14px;">
+      ${text}
+    </a>
   </div>
 `;
 
