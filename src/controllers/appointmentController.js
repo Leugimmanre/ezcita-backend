@@ -1,5 +1,6 @@
 // src/controllers/appointmentController.js
 import { sendAppointmentEmail } from "../emails/email.js";
+import { buildEmailUser } from "../emails/emailUser.js";
 
 export class AppointmentController {
   // Crear nueva cita
@@ -69,7 +70,9 @@ export class AppointmentController {
         price: s.price,
         duration: s.duration,
       }));
-      const user = { name: req.user.name || "cliente", email: req.user.email };
+
+      // Nombre/email siempre desde BD del usuario de la cita
+      const user = await buildEmailUser(req, { user: userId }, userId);
 
       sendAppointmentEmail({
         type: "created",
@@ -233,7 +236,12 @@ export class AppointmentController {
         })) ||
         [];
 
-      const user = { name: req.user.name || "cliente", email: req.user.email };
+      // Nombre/email del dueño real de la cita
+      const user = await buildEmailUser(
+        req,
+        updatedAppointment,
+        updatedAppointment.user
+      );
 
       sendAppointmentEmail({
         type: "updated",
@@ -280,10 +288,7 @@ export class AppointmentController {
       await appointment.save();
 
       // Email
-      const user = {
-        name: appointment.user.name || "cliente",
-        email: appointment.user.email,
-      };
+      const user = await buildEmailUser(req, appointment, appointment.user);
       const servicesForEmail =
         appointment.services?.map((s) => ({
           name: s.name,
@@ -332,10 +337,7 @@ export class AppointmentController {
       await appointment.save();
 
       // Email
-      const user = {
-        name: appointment.user.name || "cliente",
-        email: appointment.user.email,
-      };
+      const user = await buildEmailUser(req, appointment, appointment.user);
 
       sendAppointmentEmail({
         type: "reactivated",
@@ -373,10 +375,7 @@ export class AppointmentController {
       await appointment.save();
 
       // Email
-      const user = {
-        name: appointment.user.name || "cliente",
-        email: appointment.user.email,
-      };
+      const user = await buildEmailUser(req, appointment, appointment.user);
 
       sendAppointmentEmail({
         type: "completed",
@@ -412,10 +411,7 @@ export class AppointmentController {
       await req.Appointments.findByIdAndDelete(id);
 
       // Email (informativo / CANCEL)
-      const user = {
-        name: appointment.user.name || "cliente",
-        email: appointment.user.email,
-      };
+      const user = await buildEmailUser(req, appointment, appointment.user);
 
       sendAppointmentEmail({
         type: "deleted",
