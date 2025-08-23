@@ -8,17 +8,19 @@ export class AppointmentController {
       const { services, date, notes } = req.body;
       const userId = req.user.id;
 
-      const settings = await req.AppointmentSettings.findOne({
+      const apptSettings = await req.AppointmentSettings.findOne({
         tenantId: req.tenantId,
       });
-      if (!settings)
+      if (!apptSettings) {
         return res.status(400).json({ error: "Configuración no encontrada" });
+      }
 
       const servicesData = await req.Services.find({ _id: { $in: services } });
-      if (!servicesData.length)
+      if (!servicesData.length) {
         return res
           .status(400)
           .json({ error: "Servicios no válidos o no encontrados" });
+      }
 
       const totalDuration = servicesData.reduce(
         (sum, s) => sum + s.duration,
@@ -42,7 +44,7 @@ export class AppointmentController {
         })
       );
 
-      if (overlappingAppointments.length >= settings.staffCount) {
+      if (overlappingAppointments.length >= apptSettings.staffCount) {
         return res.status(400).json({
           error: "No hay personal disponible para esta franja horaria",
         });
@@ -67,14 +69,16 @@ export class AppointmentController {
         price: s.price,
         duration: s.duration,
       }));
-      const user = { name: req.user.name, email: req.user.email };
+      const user = { name: req.user.name || "cliente", email: req.user.email };
+
       sendAppointmentEmail({
         type: "created",
         to: user.email,
         user,
         appointment,
         services: populatedServices,
-        settings,
+        BrandSettingsModel: req.BrandSettings,
+        tenantId: req.tenantId,
       }).catch((e) => console.error("Email error (created):", e));
 
       res
@@ -108,7 +112,6 @@ export class AppointmentController {
         filter.status = status;
       }
 
-      // Buscar las citas en la DB del tenant
       const appointments = await req.Appointments.find(filter)
         .populate({ path: "services", select: "name price duration" })
         .populate("user", "name lastname email")
@@ -135,7 +138,6 @@ export class AppointmentController {
       const userId = req.user.id;
       const isAdmin = req.user.role === "admin";
 
-      // Usar el modelo del tenant
       const appointment = await req.Appointments.findById(id)
         .populate("user", "name email")
         .populate("services", "name price duration");
@@ -170,9 +172,10 @@ export class AppointmentController {
 
       let servicesData;
       if (updateData.services || updateData.date) {
-        const settings = await req.AppointmentSettings.findOne({
+        const apptSettings = await req.AppointmentSettings.findOne({
           tenantId: req.tenantId,
         });
+
         servicesData = await req.Services.find({
           _id: { $in: updateData.services || appointment.services },
         });
@@ -199,7 +202,8 @@ export class AppointmentController {
             return aEnd > appointmentStart;
           })
         );
-        if (overlappingAppointments.length >= settings.staffCount) {
+
+        if (overlappingAppointments.length >= apptSettings.staffCount) {
           return res.status(400).json({
             error: "No hay personal disponible para esta franja horaria",
           });
@@ -216,9 +220,6 @@ export class AppointmentController {
       ).populate("services", "name price duration");
 
       // Email
-      const settings = await req.AppointmentSettings.findOne({
-        tenantId: req.tenantId,
-      });
       const servicesForEmail =
         servicesData?.map((s) => ({
           name: s.name,
@@ -231,14 +232,17 @@ export class AppointmentController {
           duration: s.duration,
         })) ||
         [];
-      const user = { name: req.user.name, email: req.user.email };
+
+      const user = { name: req.user.name || "cliente", email: req.user.email };
+
       sendAppointmentEmail({
         type: "updated",
         to: user.email,
         user,
         appointment: updatedAppointment,
         services: servicesForEmail,
-        settings,
+        BrandSettingsModel: req.BrandSettings,
+        tenantId: req.tenantId,
       }).catch((e) => console.error("Email error (updated):", e));
 
       res.json({
@@ -261,6 +265,7 @@ export class AppointmentController {
       const appointment = await req.Appointments.findById(id)
         .populate("services", "name price duration")
         .populate("user", "name email");
+
       if (!appointment)
         return res.status(404).json({ error: "Cita no encontrada" });
       if (!isAdmin && appointment.user._id.toString() !== userId)
@@ -275,11 +280,8 @@ export class AppointmentController {
       await appointment.save();
 
       // Email
-      const settings = await req.AppointmentSettings.findOne({
-        tenantId: req.tenantId,
-      });
       const user = {
-        name: appointment.user.name,
+        name: appointment.user.name || "cliente",
         email: appointment.user.email,
       };
       const servicesForEmail =
@@ -288,13 +290,15 @@ export class AppointmentController {
           price: s.price,
           duration: s.duration,
         })) || [];
+
       sendAppointmentEmail({
         type: "cancelled",
         to: user.email,
         user,
         appointment,
         services: servicesForEmail,
-        settings,
+        BrandSettingsModel: req.BrandSettings,
+        tenantId: req.tenantId,
       }).catch((e) => console.error("Email error (cancelled):", e));
 
       res.json({ message: "Cita cancelada exitosamente", appointment });
@@ -318,29 +322,29 @@ export class AppointmentController {
         return res.status(404).json({ error: "Cita no encontrada" });
       if (!isAdmin && appointment.user._id.toString() !== userId)
         return res.status(403).json({ error: "No autorizado" });
-      if (appointment.status !== "cancelled")
+      if (appointment.status !== "cancelled") {
         return res
           .status(400)
           .json({ error: "Solo se pueden reactivar citas canceladas" });
+      }
 
       appointment.status = "pending";
       await appointment.save();
 
       // Email
-      const settings = await req.AppointmentSettings.findOne({
-        tenantId: req.tenantId,
-      });
       const user = {
-        name: appointment.user.name,
+        name: appointment.user.name || "cliente",
         email: appointment.user.email,
       };
+
       sendAppointmentEmail({
         type: "reactivated",
         to: user.email,
         user,
         appointment,
         services: [],
-        settings,
+        BrandSettingsModel: req.BrandSettings,
+        tenantId: req.tenantId,
       }).catch((e) => console.error("Email error (reactivated):", e));
 
       res.json({ message: "Cita reactivada exitosamente", appointment });
@@ -369,20 +373,19 @@ export class AppointmentController {
       await appointment.save();
 
       // Email
-      const settings = await req.AppointmentSettings.findOne({
-        tenantId: req.tenantId,
-      });
       const user = {
-        name: appointment.user.name,
+        name: appointment.user.name || "cliente",
         email: appointment.user.email,
       };
+
       sendAppointmentEmail({
         type: "completed",
         to: user.email,
         user,
         appointment,
         services: [],
-        settings,
+        BrandSettingsModel: req.BrandSettings,
+        tenantId: req.tenantId,
       }).catch((e) => console.error("Email error (completed):", e));
 
       res.json({ message: "Cita marcada como completada", appointment });
@@ -409,20 +412,19 @@ export class AppointmentController {
       await req.Appointments.findByIdAndDelete(id);
 
       // Email (informativo / CANCEL)
-      const settings = await req.AppointmentSettings.findOne({
-        tenantId: req.tenantId,
-      });
       const user = {
-        name: appointment.user.name,
+        name: appointment.user.name || "cliente",
         email: appointment.user.email,
       };
+
       sendAppointmentEmail({
         type: "deleted",
         to: user.email,
         user,
         appointment,
         services: [],
-        settings,
+        BrandSettingsModel: req.BrandSettings,
+        tenantId: req.tenantId,
       }).catch((e) => console.error("Email error (deleted):", e));
 
       res.json({ message: "Cita eliminada permanentemente", appointment });
