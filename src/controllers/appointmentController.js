@@ -71,18 +71,23 @@ export class AppointmentController {
         duration: s.duration,
       }));
 
-      // Nombre/email siempre desde BD del usuario de la cita
       const user = await buildEmailUser(req, { user: userId }, userId);
 
-      sendAppointmentEmail({
-        type: "created",
-        to: user.email,
-        user,
-        appointment,
-        services: populatedServices,
-        BrandSettingsModel: req.BrandSettings,
-        tenantId: req.tenantId,
-      }).catch((e) => console.error("Email error (created):", e));
+      if (user?.email) {
+        sendAppointmentEmail({
+          type: "created",
+          to: user.email,
+          user,
+          appointment,
+          services: populatedServices,
+          BrandSettingsModel: req.BrandSettings,
+          tenantId: req.tenantId,
+        }).catch((e) => console.error("Email error (created):", e));
+      } else {
+        console.warn(
+          "createAppointment: no se envía email (destinatario vacío)"
+        );
+      }
 
       res
         .status(201)
@@ -222,7 +227,6 @@ export class AppointmentController {
         { new: true, runValidators: true }
       ).populate("services", "name price duration");
 
-      // Email
       const servicesForEmail =
         servicesData?.map((s) => ({
           name: s.name,
@@ -236,22 +240,27 @@ export class AppointmentController {
         })) ||
         [];
 
-      // Nombre/email del dueño real de la cita
       const user = await buildEmailUser(
         req,
         updatedAppointment,
         updatedAppointment.user
       );
 
-      sendAppointmentEmail({
-        type: "updated",
-        to: user.email,
-        user,
-        appointment: updatedAppointment,
-        services: servicesForEmail,
-        BrandSettingsModel: req.BrandSettings,
-        tenantId: req.tenantId,
-      }).catch((e) => console.error("Email error (updated):", e));
+      if (user?.email) {
+        sendAppointmentEmail({
+          type: "updated",
+          to: user.email,
+          user,
+          appointment: updatedAppointment,
+          services: servicesForEmail,
+          BrandSettingsModel: req.BrandSettings,
+          tenantId: req.tenantId,
+        }).catch((e) => console.error("Email error (updated):", e));
+      } else {
+        console.warn(
+          "updateAppointment: no se envía email (destinatario vacío)"
+        );
+      }
 
       res.json({
         message: "Cita actualizada exitosamente",
@@ -287,7 +296,6 @@ export class AppointmentController {
       appointment.status = "cancelled";
       await appointment.save();
 
-      // Email
       const user = await buildEmailUser(req, appointment, appointment.user);
       const servicesForEmail =
         appointment.services?.map((s) => ({
@@ -296,15 +304,21 @@ export class AppointmentController {
           duration: s.duration,
         })) || [];
 
-      sendAppointmentEmail({
-        type: "cancelled",
-        to: user.email,
-        user,
-        appointment,
-        services: servicesForEmail,
-        BrandSettingsModel: req.BrandSettings,
-        tenantId: req.tenantId,
-      }).catch((e) => console.error("Email error (cancelled):", e));
+      if (user?.email) {
+        sendAppointmentEmail({
+          type: "cancelled",
+          to: user.email,
+          user,
+          appointment,
+          services: servicesForEmail,
+          BrandSettingsModel: req.BrandSettings,
+          tenantId: req.tenantId,
+        }).catch((e) => console.error("Email error (cancelled):", e));
+      } else {
+        console.warn(
+          "cancelAppointment: no se envía email (destinatario vacío)"
+        );
+      }
 
       res.json({ message: "Cita cancelada exitosamente", appointment });
     } catch (error) {
@@ -336,18 +350,23 @@ export class AppointmentController {
       appointment.status = "pending";
       await appointment.save();
 
-      // Email
       const user = await buildEmailUser(req, appointment, appointment.user);
 
-      sendAppointmentEmail({
-        type: "reactivated",
-        to: user.email,
-        user,
-        appointment,
-        services: [],
-        BrandSettingsModel: req.BrandSettings,
-        tenantId: req.tenantId,
-      }).catch((e) => console.error("Email error (reactivated):", e));
+      if (user?.email) {
+        sendAppointmentEmail({
+          type: "reactivated",
+          to: user.email,
+          user,
+          appointment,
+          services: [],
+          BrandSettingsModel: req.BrandSettings,
+          tenantId: req.tenantId,
+        }).catch((e) => console.error("Email error (reactivated):", e));
+      } else {
+        console.warn(
+          "reactivateAppointment: no se envía email (destinatario vacío)"
+        );
+      }
 
       res.json({ message: "Cita reactivada exitosamente", appointment });
     } catch (error) {
@@ -374,18 +393,23 @@ export class AppointmentController {
       appointment.status = "completed";
       await appointment.save();
 
-      // Email
       const user = await buildEmailUser(req, appointment, appointment.user);
 
-      sendAppointmentEmail({
-        type: "completed",
-        to: user.email,
-        user,
-        appointment,
-        services: [],
-        BrandSettingsModel: req.BrandSettings,
-        tenantId: req.tenantId,
-      }).catch((e) => console.error("Email error (completed):", e));
+      if (user?.email) {
+        sendAppointmentEmail({
+          type: "completed",
+          to: user.email,
+          user,
+          appointment,
+          services: [],
+          BrandSettingsModel: req.BrandSettings,
+          tenantId: req.tenantId,
+        }).catch((e) => console.error("Email error (completed):", e));
+      } else {
+        console.warn(
+          "completeAppointment: no se envía email (destinatario vacío)"
+        );
+      }
 
       res.json({ message: "Cita marcada como completada", appointment });
     } catch (error) {
@@ -410,18 +434,23 @@ export class AppointmentController {
 
       await req.Appointments.findByIdAndDelete(id);
 
-      // Email (informativo / CANCEL)
       const user = await buildEmailUser(req, appointment, appointment.user);
 
-      sendAppointmentEmail({
-        type: "deleted",
-        to: user.email,
-        user,
-        appointment,
-        services: [],
-        BrandSettingsModel: req.BrandSettings,
-        tenantId: req.tenantId,
-      }).catch((e) => console.error("Email error (deleted):", e));
+      if (user?.email) {
+        sendAppointmentEmail({
+          type: "deleted",
+          to: user.email,
+          user,
+          appointment,
+          services: [],
+          BrandSettingsModel: req.BrandSettings,
+          tenantId: req.tenantId,
+        }).catch((e) => console.error("Email error (deleted):", e));
+      } else {
+        console.warn(
+          "deleteAppointment: no se envía email (destinatario vacío)"
+        );
+      }
 
       res.json({ message: "Cita eliminada permanentemente", appointment });
     } catch (error) {
