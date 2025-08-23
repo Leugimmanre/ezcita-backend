@@ -70,6 +70,7 @@ export const commonStyles = `
   .button-container {
     text-align: center;
     margin: 35px 0;
+    color:#ffffff
   }
   
   .button {

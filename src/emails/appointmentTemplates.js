@@ -50,45 +50,45 @@ const baseWrapper = (inner, styleType = "confirmation") => `
         border-radius: 12px;
         overflow: hidden;
       }
-.services-container {
-  margin: 20px 0;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-}
+      .services-container {
+        margin: 20px 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+      }
 
-/* Cabecera en dos columnas */
-.services-header {
-  display: table;
-  width: 100%;
-  background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
-  font-weight: 600;
-}
-.services-header .cell-name,
-.services-header .cell-price {
-  display: table-cell;
-  padding: 14px 20px;
-  vertical-align: middle;
-}
-.services-header .cell-name { width: 60%; }
-.services-header .cell-price { width: 40%; text-align: right; }
+      /* Cabecera en dos columnas */
+      .services-header {
+        display: table;
+        width: 100%;
+        background: #f1f5f9;
+        border-bottom: 1px solid #e2e8f0;
+        font-weight: 600;
+      }
+      .services-header .cell-name,
+      .services-header .cell-price {
+        display: table-cell;
+        padding: 14px 20px;
+        vertical-align: middle;
+      }
+      .services-header .cell-name { width: 60%; }
+      .services-header .cell-price { width: 40%; text-align: right; }
 
-/* Tabla de filas */
-.services-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.services-table .cell-name,
-.services-table .cell-price {
-  padding: 12px 20px;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: top;
-}
-.services-table .cell-name { width: 60%; color: #1e293b; }
-.services-table .cell-price { width: 40%; text-align: right; white-space: nowrap; color: #1e293b; }
-.services-table tr:last-child .cell-name,
-.services-table tr:last-child .cell-price { border-bottom: none; }
+      /* Tabla de filas */
+      .services-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .services-table .cell-name,
+      .services-table .cell-price {
+        padding: 12px 20px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: top;
+      }
+      .services-table .cell-name { width: 60%; color: #1e293b; }
+      .services-table .cell-price { width: 40%; text-align: right; white-space: nowrap; color: #1e293b; }
+      .services-table tr:last-child .cell-name,
+      .services-table tr:last-child .cell-price { border-bottom: none; }
 
       .service-item {
         display: flex;
