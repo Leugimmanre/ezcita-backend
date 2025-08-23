@@ -340,7 +340,12 @@ export const appointmentTemplates = {
       </div>
       
       <div class="button-container">
-        <a href="#" class="button">Programar nueva cita</a>
+        <a href="#" class="button" 
+          style="color:#ffffff; background:#2563eb; text-decoration:none; 
+          font-weight:bold; padding:12px 20px; border-radius:6px; 
+          display:inline-block; font-size:14px;">
+          Programar nueva cita
+        </a>
       </div>
     `;
 
@@ -377,7 +382,12 @@ export const appointmentTemplates = {
       </div>
       
       <div class="button-container">
-        <a href="#" class="button">Programar nueva cita</a>
+        <a href="#" class="button" 
+          style="color:#ffffff; background:#2563eb; text-decoration:none; 
+          font-weight:bold; padding:12px 20px; border-radius:6px; 
+          display:inline-block; font-size:14px;">
+          Programar nueva cita
+        </a>
       </div>
     `;
 
