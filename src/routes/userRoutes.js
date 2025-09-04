@@ -11,10 +11,10 @@ import { requireVerified } from "../middlewares/requireVerified.js";
 const router = Router();
 // Primero validamos JWT
 router.use(authMiddleware);
-// Luego validamos que el usuario esté verificado
-router.use(requireVerified);
 // Luego resolvemos el tenant
 router.use(tenantMiddleware);
+// Luego validamos que el usuario esté verificado
+router.use(requireVerified);
 
 // Crear
 router.post(
