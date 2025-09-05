@@ -9,7 +9,7 @@ import { uploadLogoDisk } from "../middlewares/uploadLogo/disk.js";
 const router = Router();
 
 // Obtener ajustes
-router.get("/", BrandSettingsController.get);
+router.get("/", tenantMiddleware, BrandSettingsController.get);
 
 // Orden recomendado
 router.use(authMiddleware);
