@@ -5,6 +5,8 @@ dotenv.config();
 const staticWhitelist = [
   process.env.FRONTEND_URL,
   "http://localhost:5173",
+  "https://ezcita-salon.netlify.app", // cliente salon
+  "https://kwalphysio.netlify.app", // cliente fisioterapeuta
 ].filter(Boolean);
 
 // dominios que aceptas por patrón (Netlify, Vercel, Render static, etc.)
