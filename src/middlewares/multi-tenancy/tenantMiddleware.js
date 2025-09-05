@@ -1,14 +1,28 @@
 // src/middlewares/multi-tenancy/tenantMiddleware.js
 import tenantManager from "./tenantManager.js";
 
+// Solo letras, números, punto, guion y guion_bajo
+const isValidTenantId = (s = "") => /^[a-zA-Z0-9._-]+$/.test(String(s));
+
 export const tenantMiddleware = async (req, res, next) => {
-  // 1. Obtiene tenantId de headers o query params
-  const tenantId = req.headers["x-tenant-id"] || req.query.tenant;
+  // 1) Lee header (case-insensitive), query o usuario autenticado
+  const headerId = req.get("X-Tenant-ID") || req.get("x-tenant-id");
+  const tenantId = headerId || req.query.tenant || req.user?.tenantId;
   // 2. Valida presencia de tenantId
   if (!tenantId) {
     return res.status(400).json({
+      success: false,
       error: "Tenant ID required",
-      message: "Please provide X-Tenant-ID header or tenant query parameter",
+      message:
+        "Please provide X-Tenant-ID header, ?tenant=, or ensure your user has tenantId.",
+    });
+  }
+
+  if (!isValidTenantId(tenantId)) {
+    return res.status(400).json({
+      success: false,
+      error: "Invalid Tenant ID",
+      message: "Use only letters, numbers, '.', '_' or '-'.",
     });
   }
 

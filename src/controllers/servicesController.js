@@ -1,7 +1,10 @@
-// controllers/servicesController.js
+// src/controllers/servicesController.js
 import mongoose from "mongoose";
+import fs from "fs";
+import cloudinary from "../config/cloudinary.js";
+import { slugifyTenant } from "../utils/slugifyTenant.js";
 
-// Función para normalizar datos antes de guardar
+// Normaliza datos del servicio
 const normalizeServiceData = (data) => {
   if (data.category && typeof data.category === "string") {
     data.category = data.category.toLowerCase();
@@ -9,59 +12,66 @@ const normalizeServiceData = (data) => {
   return data;
 };
 
+// Helper: borra un path temporal si existe
+const safeUnlink = (p) => {
+  try {
+    if (p && fs.existsSync(p)) fs.unlinkSync(p);
+  } catch (_) {}
+};
+
+// Carpeta Cloudinary por tenant
+const cloudinaryFolderForTenant = (tenantId) =>
+  `ezcita/${slugifyTenant(tenantId || "unknown")}/services`;
+
 export const ServicesController = {
   // Crea un nuevo servicio
   async createService(req, res, next) {
     try {
-      // Normalizar datos antes de crear
       const normalizedData = normalizeServiceData({ ...req.body });
-      // 1. Crear instancia del servicio con datos combinados
+
       const service = new req.Services({
         ...normalizedData,
         tenantId: req.tenantId,
+        // Permitir crear con imágenes iniciales si vienen (no obligatorio)
+        images: Array.isArray(normalizedData.images)
+          ? normalizedData.images
+          : [],
       });
-      // 2. Intentar guardar el servicio directamente
+
       await service.save();
-      // 3. Respuesta exitosa si se guarda correctamente
+
       res.status(201).json({
         success: true,
         data: service,
         msg: "Servicio creado correctamente",
       });
     } catch (error) {
-      // 4. Manejo específico de error de colección faltante
       if (error.code === 26) {
         try {
-          // 5. Crear la colección explícitamente
           await req.Services.createCollection();
-          // 6. Reintentar crear el servicio
           const retryService = new req.Services({
             ...req.body,
             tenantId: req.tenantId,
           });
           await retryService.save();
-          // 7. Respuesta exitosa después del reintento
           res.status(201).json({
             success: true,
             data: retryService,
             msg: "Servicio creado correctamente",
           });
         } catch (retryError) {
-          // 8. Manejo de errores en el reintento
           next(retryError);
         }
       } else {
-        // 9. Pasar otros errores al middleware de errores
         next(error);
       }
     }
   },
 
-  // Obtiene todos los servicios con filtros opcionales
+  // Obtiene todos los servicios
   async getAllServices(req, res, next) {
     try {
       const { active, category } = req.query;
-      // Filtra por tenantId y parámetros de query
       const filter = { tenantId: req.tenantId };
 
       if (active) filter.active = active === "true";
@@ -82,16 +92,19 @@ export const ServicesController = {
   // Obtiene un servicio por ID
   async getServiceById(req, res, next) {
     try {
-      // 1. Validar formato del ID primero
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-        return handleInvalidIdResponse(res);
+        return res.status(400).json({
+          success: false,
+          error: "ID no válido",
+          message: `Formato de ID inválido: ${req.params.id}`,
+        });
       }
-      // 2. Buscar servicio solo si el ID es válido
+
       const service = await req.Services.findOne({
         _id: req.params.id,
         tenantId: req.tenantId,
       });
-      // 3. Manejar servicio no encontrado
+
       if (!service) {
         return res.status(404).json({
           success: false,
@@ -99,7 +112,7 @@ export const ServicesController = {
           message: `No existe un servicio con ID ${req.params.id} para este tenant`,
         });
       }
-      // 4. Respuesta exitosa
+
       res.json({
         success: true,
         data: service,
@@ -114,25 +127,19 @@ export const ServicesController = {
   async updateService(req, res, next) {
     try {
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-        return handleInvalidIdResponse(res);
+        return res.status(400).json({
+          success: false,
+          error: "ID no válido",
+        });
       }
 
-      // Normalizar datos antes de actualizar
-      const normalizedData = normalizeServiceData({ ...req.body });
-      // Limpiar datos: convertir campos vacíos a null
       const cleanedData = normalizeServiceData({ ...req.body });
       if (cleanedData.category === "") delete cleanedData.category;
 
       const updated = await req.Services.findOneAndUpdate(
-        {
-          _id: req.params.id,
-          tenantId: req.tenantId,
-        },
+        { _id: req.params.id, tenantId: req.tenantId },
         cleanedData,
-        {
-          new: true,
-          runValidators: true,
-        }
+        { new: true, runValidators: true }
       );
 
       if (!updated) {
@@ -152,31 +159,150 @@ export const ServicesController = {
     }
   },
 
-  // Elimina un servicio por ID
+  // Elimina un servicio por ID (y borra imágenes de Cloudinary)
   async deleteService(req, res, next) {
     try {
-      // 1. Validar formato del ID primero
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-        return handleInvalidIdResponse(res);
+        return res.status(400).json({
+          success: false,
+          error: "ID no válido",
+        });
       }
-      // 2. Eliminar solo si el ID es válido
-      const deleted = await req.Services.findOneAndDelete({
+
+      // Recuperar primero para conocer imágenes
+      const service = await req.Services.findOne({
         _id: req.params.id,
         tenantId: req.tenantId,
       });
-      // 3. Manejar servicio no encontrado
-      if (!deleted) {
+
+      if (!service) {
         return res.status(404).json({
           success: false,
           error: "Servicio no encontrado",
           message: `No existe un servicio con ID ${req.params.id} para eliminar`,
         });
       }
-      // 4. Respuesta exitosa
+
+      // Borrar imágenes en Cloudinary (si las hay)
+      if (Array.isArray(service.images) && service.images.length) {
+        const deletions = service.images.map((img) =>
+          cloudinary.uploader.destroy(img.publicId).catch(() => null)
+        );
+        await Promise.all(deletions);
+      }
+
+      await req.Services.deleteOne({
+        _id: service._id,
+        tenantId: req.tenantId,
+      });
+
       res.json({
         success: true,
         data: null,
-        message: "Servicio eliminado correctamente",
+        message: "Servicio e imágenes eliminados correctamente",
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Subir UNA imagen a Cloudinary y agregarla al servicio
+  async addServiceImage(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        safeUnlink(req.file?.path);
+        return res.status(400).json({ success: false, error: "ID no válido" });
+      }
+
+      const service = await req.Services.findOne({
+        _id: id,
+        tenantId: req.tenantId,
+      });
+
+      if (!service) {
+        safeUnlink(req.file?.path);
+        return res
+          .status(404)
+          .json({ success: false, error: "Servicio no encontrado" });
+      }
+
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ success: false, error: "No se encontró el archivo" });
+      }
+
+      // Subida a Cloudinary en carpeta por tenant
+      const folder = cloudinaryFolderForTenant(req.tenantId);
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder,
+        // Opcional: transformation, calidad, etc.
+        // transformation: [{ width: 1600, crop: "limit" }],
+      });
+
+      // Borrar archivo temporal
+      safeUnlink(req.file.path);
+
+      // Añadir al array de imágenes
+      const imageDoc = {
+        url: result.secure_url,
+        publicId: result.public_id,
+        alt: req.body?.alt?.trim() || "",
+      };
+
+      service.images.push(imageDoc);
+      await service.save();
+
+      res.status(201).json({
+        success: true,
+        data: imageDoc,
+        msg: "Imagen subida y asociada correctamente",
+      });
+    } catch (error) {
+      // Intento de limpieza si algo falla tras la subida
+      safeUnlink(req.file?.path);
+      next(error);
+    }
+  },
+
+  // Eliminar UNA imagen del servicio y Cloudinary
+  async removeServiceImage(req, res, next) {
+    try {
+      const { id } = req.params;
+      const publicId = (req.query.publicId || req.body?.publicId || "").trim();
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, error: "ID no válido" });
+      }
+      if (!publicId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "publicId no proporcionado" });
+      }
+
+      const service = await req.Services.findOne({
+        _id: id,
+        tenantId: req.tenantId,
+      });
+      if (!service) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Servicio no encontrado" });
+      }
+
+      await cloudinary.uploader.destroy(publicId);
+
+      service.images = service.images.filter(
+        (img) => img.publicId !== publicId
+      );
+      await service.save();
+
+      res.json({
+        success: true,
+        data: service.images,
+        msg: "Imagen eliminada correctamente",
       });
     } catch (error) {
       next(error);

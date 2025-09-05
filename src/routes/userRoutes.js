@@ -13,6 +13,7 @@ const router = Router();
 router.use(authMiddleware);
 // Luego resolvemos el tenant
 router.use(tenantMiddleware);
+router.get("/me", UserController.me);
 // Luego validamos que el usuario esté verificado
 router.use(requireVerified);
 

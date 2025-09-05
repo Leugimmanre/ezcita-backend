@@ -1,5 +1,14 @@
 import mongoose from "mongoose";
 // import validator from "validator";
+const serviceImageSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true, trim: true },
+    publicId: { type: String, required: true, trim: true },
+    uploadedAt: { type: Date, default: Date.now },
+    alt: { type: String, trim: true },
+  },
+  { _id: false }
+);
 
 const servicesSchema = new mongoose.Schema(
   {
@@ -30,6 +39,10 @@ const servicesSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [50, "La categoría no puede exceder 50 caracteres"],
+    },
+    images: {
+      type: [serviceImageSchema],
+      default: [],
     },
     active: {
       type: Boolean,

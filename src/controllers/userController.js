@@ -120,4 +120,32 @@ export const UserController = {
       next(error);
     }
   },
+
+  // Obtener el perfil del usuario autenticado
+  async me(req, res, next) {
+    try {
+      if (!req.User) {
+        // Si pasa esto, es orden de middlewares incorrecto
+        return res.status(500).json({
+          success: false,
+          error: "User model not initialized. Check tenantMiddleware order.",
+        });
+      }
+
+      const user = await req.User.findOne({
+        _id: req.user.id,
+        tenantId: req.tenantId,
+      }).select("-password");
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Usuario no encontrado" });
+      }
+
+      res.json({ success: true, data: user });
+    } catch (error) {
+      next(error);
+    }
+  },
 };
