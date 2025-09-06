@@ -148,4 +148,72 @@ export const UserController = {
       next(error);
     }
   },
+  // Cambiar contraseña de un usuario
+  async changePassword(req, res) {
+    try {
+      const { id } = req.params;
+      const { currentPassword, newPassword } = req.body;
+
+      // ⚠️ Model multi-tenant inyectado por tenantMiddleware
+      const User = req.User;
+
+      // 1) Validaciones básicas
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: "Faltan campos: currentPassword y/o newPassword",
+        });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: "La nueva contraseña debe tener al menos 6 caracteres",
+        });
+      }
+
+      // 2) Buscar usuario
+      const user = await User.findById(id).select("+password"); // asegúrate de poder leer el hash
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Usuario no encontrado" });
+      }
+
+      // 3) Comprobar que el usuario autenticado puede cambiar esta contraseña
+      //    (mismo usuario o admin; esto depende de tu sistema de roles)
+      if (req.user.id !== String(user._id) && req.user.role !== "admin") {
+        return res
+          .status(403)
+          .json({ success: false, message: "No autorizado" });
+      }
+
+      // 4) Verificar contraseña actual
+      const isValid = await bcrypt.compare(
+        currentPassword,
+        user.password || ""
+      );
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          message: "La contraseña actual no es correcta",
+        });
+      }
+
+      // 5) Hashear nueva contraseña
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+
+      // 6) Guardar
+      await user.save();
+
+      return res.json({ success: true, data: { id: user._id } });
+    } catch (err) {
+      console.error("changePassword error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Error al cambiar la contraseña",
+      });
+    }
+  },
 };

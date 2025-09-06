@@ -58,4 +58,7 @@ router.delete(
   UserController.deleteUser
 );
 
+// Cambiar contraseña
+router.patch("/:id/password", UserController.changePassword);
+
 export default router;
