@@ -154,7 +154,7 @@ export const UserController = {
       const { id } = req.params;
       const { currentPassword, newPassword } = req.body;
 
-      // ⚠️ Model multi-tenant inyectado por tenantMiddleware
+      // Model multi-tenant inyectado por tenantMiddleware
       const User = req.User;
 
       // 1) Validaciones básicas
@@ -173,7 +173,7 @@ export const UserController = {
       }
 
       // 2) Buscar usuario
-      const user = await User.findById(id).select("+password"); // asegúrate de poder leer el hash
+      const user = await User.findById(id).select("+password");
       if (!user) {
         return res
           .status(404)
