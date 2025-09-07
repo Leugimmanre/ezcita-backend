@@ -40,12 +40,11 @@ app.use("/api/brand", brandSettingsRoutes);
 // Sirve archivos estáticos de uploads (solo lectura pública)
 app.use(
   "/static",
-  // Usa opciones para desactivar caché en proxies/navegador y evitar ETag
+  cors({ origin: "*", maxAge: 86400 }),
   express.static(path.resolve("uploads"), {
-    etag: false, // desactiva validación condicional por ETag
-    maxAge: 0, // no lo caches
+    etag: false,
+    maxAge: 0,
     setHeaders: (res) => {
-      // Fuerza no-cache en todos los niveles (navegador, CDN, proxy)
       res.setHeader(
         "Cache-Control",
         "no-store, no-cache, must-revalidate, proxy-revalidate"
