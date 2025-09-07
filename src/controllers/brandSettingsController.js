@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs/promises";
 import { invalidateBrandCache } from "../config/brand.js";
 
-// 🧰 Toma sólo claves definidas (sin pisar con undefined)
+// Toma sólo claves definidas (sin pisar con undefined)
 function pickDefined(obj, keys) {
   const out = {};
   for (const k of keys) {
@@ -14,13 +14,13 @@ function pickDefined(obj, keys) {
   return out;
 }
 
-// 🧩 URL pública relativa /static/...
+// URL pública relativa /static/...
 function buildPublicUrl(fileRelativePath) {
   // fileRelativePath debe ser relativo a 'uploads' (ej: tenants/<tenantId>/brand/logo.png)
   return `/static/${fileRelativePath.replace(/\\/g, "/")}`;
 }
 
-// 🌐 (Opcional) URL absoluta, útil en emails si el cliente abre fuera de tu dominio
+// (Opcional) URL absoluta, útil en emails si el cliente abre fuera de tu dominio
 function buildAbsoluteUrl(req, relativeUrl) {
   const proto = (req.headers["x-forwarded-proto"] || req.protocol || "http")
     .split(",")[0]

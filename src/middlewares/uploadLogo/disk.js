@@ -3,11 +3,11 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 
-// ⚙️ Tipos permitidos y límite de tamaño (2MB)
+// Tipos permitidos y límite de tamaño (2MB)
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB
 
-// 📦 Storage en disco por tenant
+// Storage en disco por tenant
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
     try {
@@ -35,7 +35,7 @@ const storage = multer.diskStorage({
   },
 });
 
-// 🧪 Filtro de archivo
+// Filtro de archivo
 function fileFilter(_req, file, cb) {
   if (!ALLOWED.has(file.mimetype)) {
     return cb(new Error("Formato no permitido (png, jpg, webp, gif)"));

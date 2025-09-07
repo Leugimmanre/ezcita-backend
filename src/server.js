@@ -38,8 +38,24 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/brand", brandSettingsRoutes);
 // Sirve archivos estáticos de uploads (solo lectura pública)
-app.use("/static", express.static(path.resolve("uploads")));
-
+app.use(
+  "/static",
+  // Usa opciones para desactivar caché en proxies/navegador y evitar ETag
+  express.static(path.resolve("uploads"), {
+    etag: false, // desactiva validación condicional por ETag
+    maxAge: 0, // no lo caches
+    setHeaders: (res) => {
+      // Fuerza no-cache en todos los niveles (navegador, CDN, proxy)
+      res.setHeader(
+        "Cache-Control",
+        "no-store, no-cache, must-revalidate, proxy-revalidate"
+      );
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.setHeader("Surrogate-Control", "no-store");
+    },
+  })
+);
 // 7. Manejo de errores global
 app.use((err, req, res, next) => {
   console.error("Error:", err.stack);
