@@ -17,7 +17,6 @@ const envOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || "")
 /** Orígenes fijos adicionales (dev + tus sitios conocidos) */
 const staticWhitelist = [
   "http://localhost:5173",
-  "http://localhost:3000",
   "https://ezcita.netlify.app",
   "https://kwalphysio.netlify.app",
   "https://blinblinstyle.netlify.app",
