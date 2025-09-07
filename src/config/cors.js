@@ -7,8 +7,8 @@ const staticWhitelist = [
   "http://localhost:5173",
   "https://ezcita-salon.netlify.app", // cliente salon
   "https://kwalphysio.netlify.app", // cliente fisioterapeuta
-  "https://blinblinstyle.netlify.app/", // cliente peluqueria
-  "https://petshappy.netlify.app/"  // cliente veterinaria
+  "https://blinblinstyle.netlify.app", // cliente peluqueria
+  "https://petshappy.netlify.app"  // cliente veterinaria
 ].filter(Boolean);
 
 // dominios que aceptas por patrón (Netlify, Vercel, Render static, etc.)
