@@ -3,10 +3,12 @@ import mongoose from "mongoose";
 
 const logoSchema = new mongoose.Schema(
   {
-    url: { type: String, default: null }, // URL pública (/static/...)
-    filename: { type: String, default: null }, // logo.png
+    url: { type: String, default: null },
+    publicId: { type: String, default: null },
+    provider: { type: String, default: "cloudinary" },
+    filename: { type: String, default: null },
     mimetype: { type: String, default: null },
-    size: { type: Number, default: 0 }, // bytes
+    size: { type: Number, default: 0 },
   },
   { _id: false }
 );
