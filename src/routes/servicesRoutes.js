@@ -4,7 +4,7 @@ import { ServicesController } from "../controllers/servicesController.js";
 import { handleInputErrors } from "../middlewares/handleInputErrors.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { tenantMiddleware } from "../middlewares/multi-tenancy/tenantMiddleware.js";
-import upload from "../middlewares/upload.js";
+import { uploadDisk } from "../middlewares/upload.js";
 
 const router = Router();
 // Primero validamos JWT
@@ -86,7 +86,7 @@ router.post(
   [
     param("id").isMongoId().withMessage("ID no válido"),
     handleInputErrors,
-    upload.single("file"),
+    uploadDisk.single("file"),
   ],
   ServicesController.addServiceImage
 );
