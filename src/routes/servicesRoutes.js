@@ -7,12 +7,16 @@ import { tenantMiddleware } from "../middlewares/multi-tenancy/tenantMiddleware.
 import { uploadDisk } from "../middlewares/upload.js";
 
 const router = Router();
-// Primero validamos JWT
+
+/**
+ * Orden de middlewares:
+ * 1) auth: exige JWT para todas las rutas de este router
+ * 2) tenant: inyecta modelos específicos y req.tenantId
+ */
 router.use(authMiddleware);
-// Luego resolvemos el tenant
 router.use(tenantMiddleware);
 
-// Validaciones comunes reutilizables
+// Validaciones reutilizables
 const nameValidation = body("name")
   .notEmpty()
   .withMessage("El nombre es obligatorio")
@@ -33,9 +37,6 @@ const durationValidation = body("duration")
   .isInt({ min: 1 })
   .withMessage("La duración debe ser al menos 1");
 
-// Todas las rutas requieren autenticación JWT
-// router.use(validateJWT);
-
 // Crear servicio
 router.post(
   "/",
@@ -53,14 +54,14 @@ router.post(
 // Obtener todos los servicios (con filtros opcionales)
 router.get("/", ServicesController.getAllServices);
 
-// Obtener por ID
+// Obtener un servicio por ID
 router.get(
   "/:id",
   [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
   ServicesController.getServiceById
 );
 
-// Actualizar por ID
+// Actualizar un servicio por ID
 router.put(
   "/:id",
   [
@@ -73,29 +74,30 @@ router.put(
   ServicesController.updateService
 );
 
-// Eliminar por ID (borrado lógico)
+// Eliminar un servicio por ID
 router.delete(
   "/:id",
   [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
   ServicesController.deleteService
 );
 
-// Multer para manejo de archivos
+// Subir UNA imagen al servicio (campo 'image' en form-data)
 router.post(
   "/:id/images",
   [
     param("id").isMongoId().withMessage("ID no válido"),
     handleInputErrors,
-    uploadDisk.single("file"),
+    // Asegura que en el frontend el campo del file se llame "image"
+    uploadDisk.single("image"),
   ],
   ServicesController.addServiceImage
 );
 
-// Eliminar UNA imagen del servicio por publicId
+// Eliminar UNA imagen del servicio (via ?publicId=...)
 router.delete(
   "/:id/images",
-  param("id").isMongoId().withMessage("ID no válido"),
-  handleInputErrors,
+  [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
   ServicesController.removeServiceImage
 );
+
 export default router;

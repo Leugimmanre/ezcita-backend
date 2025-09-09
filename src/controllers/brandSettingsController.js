@@ -1,8 +1,9 @@
-// src/controllers/brandSettingsController.js
+// Código en inglés; comentarios en español
 import cloudinary from "../config/cloudinary.js";
 import { invalidateBrandCache } from "../config/brand.js";
+import { cloudFolder } from "../utils/cloudinaryFolders.js";
 
-// helper para filtrar solo keys definidas en un objeto
+// helper: filtra solo claves definidas
 function pickDefined(obj, keys) {
   const out = {};
   for (const k of keys) {
@@ -13,7 +14,7 @@ function pickDefined(obj, keys) {
   return out;
 }
 
-// helper para subir desde buffer (si lo necesitas en otro sitio)
+// helper: subida Cloudinary usando buffer (memoryStorage) vía stream
 function uploadFromBuffer(buffer, { folder, publicId }) {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -31,6 +32,7 @@ function uploadFromBuffer(buffer, { folder, publicId }) {
 }
 
 export const BrandSettingsController = {
+  // Obtener ajustes de marca del tenant
   async get(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
@@ -41,6 +43,7 @@ export const BrandSettingsController = {
     }
   },
 
+  // Crear/actualizar ajustes de marca
   async upsert(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
@@ -54,7 +57,7 @@ export const BrandSettingsController = {
 
       const doc = await BrandSettings.findOneAndUpdate(
         { tenantId },
-        { $set: setDoc },
+        { $set: setDoc, $setOnInsert: { tenantId } }, // 👈 aseguramos tenantId en upsert
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
 
@@ -65,84 +68,68 @@ export const BrandSettingsController = {
     }
   },
 
-  // Subir/Sobrescribir logo a Cloudinary (campo 'logo' en multipart/form-data)
+  // Subir/Sobrescribir logo (campo 'logo' en multipart/form-data con memoryStorage)
   async uploadLogo(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
       const file = req.file;
       if (!file) {
-        return res.status(400).json({ message: "Logo file is required" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Logo file is required" });
       }
 
-      // 1) Si existía logo previo, lo borramos de Cloudinary
+      // Borrar logo previo si existe (tolerante a fallos)
       const prev = await BrandSettings.findOne({ tenantId }).select("logo");
       if (prev?.logo?.publicId) {
         try {
           await cloudinary.uploader.destroy(prev.logo.publicId);
-        } catch {
-          // ignorar errores de borrado
-        }
+        } catch {}
       }
 
-      // 2) Subir a Cloudinary usando el buffer
-      const folder = `ezcita/${tenantId}/brand`;
-      const publicId = "logo"; // nombre fijo por tenant
-      const uploaded = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          {
-            folder,
-            public_id: publicId,
-            overwrite: true,
-            resource_type: "image",
-            transformation: [{ fetch_format: "auto", quality: "auto" }],
-          },
-          (err, result) => (err ? reject(err) : resolve(result))
-        );
-        stream.end(file.buffer);
+      // Carpeta por tenant (normalizada)
+      const folder = cloudFolder(tenantId, "brand");
+      const uploaded = await uploadFromBuffer(file.buffer, {
+        folder,
+        publicId: "logo",
       });
 
-      // 3) Guardar datos en BD (respetando tu shape)
       const payload = {
-        url: uploaded.secure_url, // ahora es absoluta https://res.cloudinary.com/...
-        publicId: uploaded.public_id, // ezcita/<tenant>/brand/logo
+        url: uploaded.secure_url,
+        publicId: uploaded.public_id,
         provider: "cloudinary",
-        filename: null, // legacy: dejamos null al usar CDN
+        filename: file.originalname || null,
         mimetype: file.mimetype || null,
         size: file.size || 0,
       };
 
       const doc = await BrandSettings.findOneAndUpdate(
         { tenantId },
-        { $set: { logo: payload } },
+        { $set: { logo: payload }, $setOnInsert: { tenantId } },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
 
       invalidateBrandCache(tenantId);
-
-      // Devolvemos doc.logo (con secure_url), tal y como espera tu frontend
-      res.json({ success: true, data: doc.logo });
+      res.status(201).json({ success: true, data: doc.logo });
     } catch (e) {
       next(e);
     }
   },
 
-  // Borrar logo en Cloudinary
+  // Borrar logo
   async deleteLogo(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
       const doc = await BrandSettings.findOne({ tenantId }).select("logo");
       if (!doc?.logo?.publicId) {
-        return res.status(404).json({ message: "No logo to delete" });
+        return res
+          .status(404)
+          .json({ success: false, message: "No logo to delete" });
       }
 
-      // Borrar en Cloudinary
       try {
         await cloudinary.uploader.destroy(doc.logo.publicId);
-      } catch {
-        // ignorar errores de borrado
-      }
-
-      // Limpiar en BD
+      } catch {}
       doc.logo = null;
       await doc.save();
 
@@ -153,15 +140,18 @@ export const BrandSettingsController = {
     }
   },
 
-  // Subir/Sobrescribir hero (campo 'hero' en form-data)
+  // Subir/Sobrescribir hero (campo 'hero' en multipart/form-data con memoryStorage)
   async uploadHero(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
       const file = req.file;
-      if (!file)
-        return res.status(400).json({ message: "Hero file is required" });
+      if (!file) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Hero file is required" });
+      }
 
-      // Borrar previo si existe
+      // Borrar hero previo si existe
       const prev = await BrandSettings.findOne({ tenantId }).select("hero");
       if (prev?.hero?.publicId) {
         try {
@@ -169,7 +159,7 @@ export const BrandSettingsController = {
         } catch {}
       }
 
-      const folder = `ezcita/${tenantId}/brand`;
+      const folder = cloudFolder(tenantId, "brand");
       const uploaded = await uploadFromBuffer(file.buffer, {
         folder,
         publicId: "hero",
@@ -179,31 +169,34 @@ export const BrandSettingsController = {
         url: uploaded.secure_url,
         publicId: uploaded.public_id,
         provider: "cloudinary",
-        filename: null,
+        filename: file.originalname || null,
         mimetype: file.mimetype || null,
         size: file.size || 0,
       };
 
       const doc = await BrandSettings.findOneAndUpdate(
         { tenantId },
-        { $set: { hero: payload }, $setOnInsert: { tenantId } }, // 👈 asegura tenantId en upsert
+        { $set: { hero: payload }, $setOnInsert: { tenantId } },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
 
       invalidateBrandCache(tenantId);
-      res.json({ success: true, data: doc.hero });
+      res.status(201).json({ success: true, data: doc.hero });
     } catch (e) {
       next(e);
     }
   },
 
-  // Eliminar hero
+  // Borrar hero
   async deleteHero(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
       const doc = await BrandSettings.findOne({ tenantId }).select("hero");
-      if (!doc?.hero?.publicId)
-        return res.status(404).json({ message: "No hero to delete" });
+      if (!doc?.hero?.publicId) {
+        return res
+          .status(404)
+          .json({ success: false, message: "No hero to delete" });
+      }
 
       try {
         await cloudinary.uploader.destroy(doc.hero.publicId);
