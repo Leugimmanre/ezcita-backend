@@ -8,18 +8,13 @@ import { uploadMemory } from "../middlewares/upload.js";
 
 const router = Router();
 
-// Obtener ajustes (puede ir sin auth si quieres público)
-router.get("/", BrandSettingsController.get);
-
-// A partir de aquí, requiere tenant y auth
 router.use(authMiddleware);
 router.use(tenantMiddleware);
 router.use(requireVerified);
 
-// Crear/actualizar ajustes
+router.get("/", BrandSettingsController.get);
 router.put("/", BrandSettingsController.upsert);
 
-// Subir logo/hero con memoryStorage (necesario para .buffer)
 router.post(
   "/logo",
   uploadMemory.single("logo"),
