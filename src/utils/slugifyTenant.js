@@ -1,10 +1,13 @@
 // src/utils/slugifyTenant.js
-// Normaliza: sin acentos, minúsculas, solo [a-z0-9._-], colapsa separadores
-export const slugifyTenant = (s = "") =>
-  String(s)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // quita acentos
-    .toLowerCase()
+export function slugifyTenant(tenantId = "") {
+  // Normaliza: minúsculas, quita tildes, deja solo [a-z0-9-]
+  let s = String(tenantId)
     .trim()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  s = s.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+  return s || "unknown";
+}
