@@ -1,4 +1,6 @@
 // Código en inglés; comentarios en español
+import path from "path";
+import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
 import { invalidateBrandCache } from "../config/brand.js";
 import { cloudFolder } from "../utils/cloudinaryFolders.js";
@@ -31,11 +33,54 @@ function uploadFromBuffer(buffer, { folder, publicId }) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────
+// Helpers para soportar logos/hero legacy en /static (sin publicId)
+// ─────────────────────────────────────────────────────────────
+function isLocalStatic(url = "") {
+  return typeof url === "string" && url.startsWith("/static/");
+}
+
+// Resuelve la ruta física del archivo servido bajo /static
+function resolveStaticFilePath(staticUrl) {
+  // Si usas otra carpeta para servir /static, ajusta STATIC_DIR
+  const baseDir = process.env.STATIC_DIR || "public";
+  const relative = String(staticUrl).replace(/^\/static\//, "");
+  return path.resolve(process.cwd(), baseDir, relative);
+}
+
+async function safeUnlink(filePath) {
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    // noop
+  }
+}
+
+async function safeDestroy(publicId) {
+  try {
+    if (publicId) await cloudinary.uploader.destroy(publicId);
+  } catch {
+    // noop
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+
 export const BrandSettingsController = {
   // Obtener ajustes de marca del tenant
   async get(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
+
+      // Defensa: asegurar contexto de tenant
+      if (!tenantId || !BrandSettings) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing",
+          message: "Ensure tenantMiddleware runs before this endpoint",
+        });
+      }
+
       const doc = await BrandSettings.findOne({ tenantId }).lean();
       return res.json({ success: true, data: doc || null });
     } catch (e) {
@@ -47,6 +92,15 @@ export const BrandSettingsController = {
   async upsert(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
+
+      if (!tenantId || !BrandSettings) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing",
+          message: "Ensure tenantMiddleware runs before this endpoint",
+        });
+      }
+
       const setDoc = pickDefined(req.body, [
         "brandName",
         "brandDomain",
@@ -57,7 +111,7 @@ export const BrandSettingsController = {
 
       const doc = await BrandSettings.findOneAndUpdate(
         { tenantId },
-        { $set: setDoc, $setOnInsert: { tenantId } }, // 👈 aseguramos tenantId en upsert
+        { $set: setDoc, $setOnInsert: { tenantId } },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
 
@@ -72,6 +126,15 @@ export const BrandSettingsController = {
   async uploadLogo(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
+
+      if (!tenantId || !BrandSettings) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing",
+          message: "Ensure tenantMiddleware runs before this endpoint",
+        });
+      }
+
       const file = req.file;
       if (!file) {
         return res
@@ -79,12 +142,14 @@ export const BrandSettingsController = {
           .json({ success: false, message: "Logo file is required" });
       }
 
-      // Borrar logo previo si existe (tolerante a fallos)
+      // Borrar logo previo si existe (Cloudinary o archivo local legacy)
       const prev = await BrandSettings.findOne({ tenantId }).select("logo");
-      if (prev?.logo?.publicId) {
-        try {
-          await cloudinary.uploader.destroy(prev.logo.publicId);
-        } catch {}
+      if (prev?.logo) {
+        if (prev.logo.publicId) {
+          await safeDestroy(prev.logo.publicId);
+        } else if (isLocalStatic(prev.logo.url)) {
+          await safeUnlink(resolveStaticFilePath(prev.logo.url));
+        }
       }
 
       // Carpeta por tenant (normalizada)
@@ -116,20 +181,33 @@ export const BrandSettingsController = {
     }
   },
 
-  // Borrar logo
+  // Borrar logo (soporta Cloudinary y legacy /static)
   async deleteLogo(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
+
+      if (!tenantId || !BrandSettings) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing",
+          message: "Ensure tenantMiddleware runs before this endpoint",
+        });
+      }
+
       const doc = await BrandSettings.findOne({ tenantId }).select("logo");
-      if (!doc?.logo?.publicId) {
+      if (!doc?.logo) {
         return res
           .status(404)
           .json({ success: false, message: "No logo to delete" });
       }
 
-      try {
-        await cloudinary.uploader.destroy(doc.logo.publicId);
-      } catch {}
+      const { publicId, url } = doc.logo || {};
+      if (publicId) {
+        await safeDestroy(publicId);
+      } else if (isLocalStatic(url)) {
+        await safeUnlink(resolveStaticFilePath(url));
+      }
+
       doc.logo = null;
       await doc.save();
 
@@ -144,6 +222,15 @@ export const BrandSettingsController = {
   async uploadHero(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
+
+      if (!tenantId || !BrandSettings) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing",
+          message: "Ensure tenantMiddleware runs before this endpoint",
+        });
+      }
+
       const file = req.file;
       if (!file) {
         return res
@@ -151,12 +238,14 @@ export const BrandSettingsController = {
           .json({ success: false, message: "Hero file is required" });
       }
 
-      // Borrar hero previo si existe
+      // Borrar hero previo si existe (Cloudinary o archivo local legacy)
       const prev = await BrandSettings.findOne({ tenantId }).select("hero");
-      if (prev?.hero?.publicId) {
-        try {
-          await cloudinary.uploader.destroy(prev.hero.publicId);
-        } catch {}
+      if (prev?.hero) {
+        if (prev.hero.publicId) {
+          await safeDestroy(prev.hero.publicId);
+        } else if (isLocalStatic(prev.hero.url)) {
+          await safeUnlink(resolveStaticFilePath(prev.hero.url));
+        }
       }
 
       const folder = cloudFolder(tenantId, "brand");
@@ -187,20 +276,33 @@ export const BrandSettingsController = {
     }
   },
 
-  // Borrar hero
+  // Borrar hero (soporta Cloudinary y legacy /static)
   async deleteHero(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
+
+      if (!tenantId || !BrandSettings) {
+        return res.status(400).json({
+          success: false,
+          error: "Tenant context missing",
+          message: "Ensure tenantMiddleware runs before this endpoint",
+        });
+      }
+
       const doc = await BrandSettings.findOne({ tenantId }).select("hero");
-      if (!doc?.hero?.publicId) {
+      if (!doc?.hero) {
         return res
           .status(404)
           .json({ success: false, message: "No hero to delete" });
       }
 
-      try {
-        await cloudinary.uploader.destroy(doc.hero.publicId);
-      } catch {}
+      const { publicId, url } = doc.hero || {};
+      if (publicId) {
+        await safeDestroy(publicId);
+      } else if (isLocalStatic(url)) {
+        await safeUnlink(resolveStaticFilePath(url));
+      }
+
       doc.hero = null;
       await doc.save();
 
