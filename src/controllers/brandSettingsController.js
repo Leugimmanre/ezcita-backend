@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
 import { invalidateBrandCache } from "../config/brand.js";
 import { cloudFolder } from "../utils/cloudinaryFolders.js";
+import tenantManager from "../middlewares/multi-tenancy/tenantManager.js";
 
 // helper: filtra solo claves definidas
 function pickDefined(obj, keys) {
@@ -68,10 +69,9 @@ async function safeDestroy(publicId) {
 
 export const BrandSettingsController = {
   // Obtener ajustes de marca del tenant
-  async get(req, res, next) {
+  async get(req, res) {
     try {
       const tenant = req.query.tenant || req.headers["x-tenant-id"] || null;
-
       if (!tenant) {
         return res.status(400).json({
           success: false,
@@ -80,18 +80,27 @@ export const BrandSettingsController = {
         });
       }
 
-      // No uses req.BrandSettings aquí, usa tenantManager
+      if (!tenantManager || !tenantManager.getBrandSettingsModel) {
+        throw new Error(
+          "tenantManager import failed (missing getBrandSettingsModel)"
+        );
+      }
+
       const BrandSettings = await tenantManager.getBrandSettingsModel(tenant);
       const doc = await BrandSettings.findOne({ tenantId: tenant }).lean();
 
       return res.json({ success: true, data: doc || null });
     } catch (err) {
-      console.error("GET /api/brand failed:", err?.message, err?.stack);
-      next(err);
+      console.error("GET /api/brand failed:", err?.name, err?.message);
+      res.status(500).json({
+        success: false,
+        error: err?.name || "ServerError",
+        message: err?.message || "Internal Server Error",
+      });
     }
   },
 
-  // Desde aquí en adelante, mantiene tu lógica actual (usa tenantMiddleware)
+  // Crear o actualizar ajustes de marca (solo JSON)
   async upsert(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
