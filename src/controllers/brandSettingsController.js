@@ -70,30 +70,23 @@ export const BrandSettingsController = {
   // Obtener ajustes de marca del tenant
   async get(req, res, next) {
     try {
-      // obtener tenant desde query o header
       const tenant = req.query.tenant || req.headers["x-tenant-id"] || null;
 
       if (!tenant) {
         return res.status(400).json({
           success: false,
           error: "tenant required",
-          message: "Provide ?tenant=<id> or x-tenant-id header",
+          message: "Provide ?tenant=<id> or x-tenant-id",
         });
       }
 
-      // Resolver el modelo vía tenantManager (no uses req.BrandSettings aquí)
+      // No uses req.BrandSettings aquí, usa tenantManager
       const BrandSettings = await tenantManager.getBrandSettingsModel(tenant);
-
       const doc = await BrandSettings.findOne({ tenantId: tenant }).lean();
 
-      // Puedes devolver null o defaults si no existe
-      return res.json({
-        success: true,
-        data: doc || null,
-      });
+      return res.json({ success: true, data: doc || null });
     } catch (err) {
-      // log útil para Render
-      console.error("GET /api/brand error:", err?.message, err?.stack);
+      console.error("GET /api/brand failed:", err?.message, err?.stack);
       next(err);
     }
   },
