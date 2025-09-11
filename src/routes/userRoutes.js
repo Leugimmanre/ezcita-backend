@@ -61,4 +61,7 @@ router.delete(
 // Cambiar contraseña
 router.patch("/:id/password", UserController.changePassword);
 
+// GET /api/users?q=...&limit=20
+router.get("/", UserController.search);
+
 export default router;

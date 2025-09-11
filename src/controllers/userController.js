@@ -216,4 +216,34 @@ export const UserController = {
       });
     }
   },
+
+  // Búsqueda simple por nombre/apellido/email (multi-tenant)
+  async search(req, res, next) {
+    try {
+      const q = String(req.query.q || "").trim();
+      const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
+
+      if (!q || q.length < 2) {
+        return res.json({ users: [] });
+      }
+
+      // Si tu tenantMiddleware inyecta req.Users, úsalo. Si no, usa el modelo global.
+      const Users = req.Users || req.app.get("UserModel");
+
+      const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const filter = {
+        tenantId: req.tenantId,
+        $or: [{ name: re }, { lastname: re }, { email: re }],
+      };
+
+      const users = await Users.find(filter)
+        .select("_id name lastname email")
+        .limit(limit)
+        .sort({ name: 1, lastname: 1 });
+
+      res.json({ users });
+    } catch (e) {
+      next(e);
+    }
+  },
 };

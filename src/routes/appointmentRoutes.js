@@ -1,3 +1,4 @@
+// Código en inglés; comentarios en español
 import { Router } from "express";
 import { body, param, query } from "express-validator";
 import { AppointmentController } from "../controllers/appointmentController.js";
@@ -5,6 +6,7 @@ import { handleInputErrors } from "../middlewares/handleInputErrors.js";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import mongoose from "mongoose";
 import { tenantMiddleware } from "../middlewares/multi-tenancy/tenantMiddleware.js";
+
 const router = Router();
 
 // Primero validamos JWT
@@ -37,7 +39,15 @@ const statusValidation = body("status")
   .isIn(["pending", "confirmed", "cancelled", "completed"])
   .withMessage("Estado no válido");
 
-// Crear cita
+// Middleware inline para admin
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ error: "No autorizado" });
+  }
+  next();
+}
+
+// Crear cita (usuario autenticado)
 router.post(
   "/",
   [
@@ -47,6 +57,21 @@ router.post(
     handleInputErrors,
   ],
   AppointmentController.createAppointment
+);
+
+// Crear cita como ADMIN (para cualquier usuario)
+router.post(
+  "/admin",
+  [
+    requireAdmin,
+    body("userId").notEmpty().isMongoId().withMessage("userId inválido"),
+    dateValidation,
+    servicesValidation,
+    statusValidation,
+    body("notes").optional().isLength({ max: 500 }),
+    handleInputErrors,
+  ],
+  AppointmentController.createAppointmentByAdmin
 );
 
 // Obtener citas con filtros
@@ -78,7 +103,7 @@ router.get(
   AppointmentController.getAppointmentById
 );
 
-// Actualizar cita
+// Actualizar cita (admin o dueño)
 router.put(
   "/:id",
   [
