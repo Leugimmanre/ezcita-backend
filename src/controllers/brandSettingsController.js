@@ -70,29 +70,37 @@ export const BrandSettingsController = {
   // Obtener ajustes de marca del tenant
   async get(req, res, next) {
     try {
-      const { tenantId, BrandSettings } = req;
+      // Obtener tenant desde query o header (fallback)
+      const tenant =
+        req.query.tenant || req.headers["x-tenant-id"] || req.tenantId;
 
-      // Defensa: asegurar contexto de tenant
-      if (!tenantId || !BrandSettings) {
+      if (!tenant) {
+        // 400: la pantalla de login debe pasar ?tenant=...
         return res.status(400).json({
           success: false,
-          error: "Tenant context missing",
-          message: "Ensure tenantMiddleware runs before this endpoint",
+          error: "tenant required",
+          message: "Provide ?tenant=<id> or x-tenant-id header",
         });
       }
 
-      const doc = await BrandSettings.findOne({ tenantId }).lean();
-      return res.json({ success: true, data: doc || null });
+      // NO dependas de req.BrandSettings aquí
+      const BrandSettings = await tenantManager.getBrandSettingsModel(tenant);
+      const doc = await BrandSettings.findOne({ tenantId: tenant }).lean();
+
+      // Puedes devolver null o un objeto por defecto si no existe
+      return res.json({
+        success: true,
+        data: doc || null,
+      });
     } catch (e) {
       next(e);
     }
   },
 
-  // Crear/actualizar ajustes de marca
+  // Desde aquí en adelante, mantiene tu lógica actual (usa tenantMiddleware)
   async upsert(req, res, next) {
     try {
       const { tenantId, BrandSettings } = req;
-
       if (!tenantId || !BrandSettings) {
         return res.status(400).json({
           success: false,

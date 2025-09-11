@@ -8,12 +8,13 @@ import { uploadMemory } from "../middlewares/upload.js";
 
 const router = Router();
 
+router.get("/", BrandSettingsController.get);
+
 router.use(authMiddleware);
 router.use(tenantMiddleware);
 router.use(requireVerified);
 
 // Solo JSON
-router.get("/", BrandSettingsController.get);
 router.put("/", BrandSettingsController.upsert);
 
 // Cada endpoint: exactamente un file
