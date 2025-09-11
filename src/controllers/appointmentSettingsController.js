@@ -1,6 +1,4 @@
-// controllers/appointmentSettingsController.js
-// Código en inglés; comentarios en español
-
+// src/controllers/appointmentSettingsController.js
 const DEFAULT_SETTINGS = {
   startHour: 9, // 9:00
   endHour: 18, // 18:00

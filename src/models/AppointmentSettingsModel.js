@@ -1,3 +1,4 @@
+// src/models/AppointmentSettingsModel.js
 import mongoose from "mongoose";
 
 // Definición del esquema de configuración de citas

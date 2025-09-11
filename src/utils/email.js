@@ -1,3 +1,4 @@
+// src/utils/email.js
 import nodemailer from "nodemailer";
 
 // Configurar el transportador de correo

@@ -1,3 +1,4 @@
+// src/routes/appointmentSettingsRoutes.js
 import { Router } from "express";
 import { AppointmentSettingsController } from "../controllers/appointmentSettingsController.js";
 import { body } from "express-validator";

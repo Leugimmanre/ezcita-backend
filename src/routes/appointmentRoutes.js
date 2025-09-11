@@ -1,4 +1,4 @@
-// Código en inglés; comentarios en español
+// src/routes/appointmentRoutes.js
 import { Router } from "express";
 import { body, param, query } from "express-validator";
 import { AppointmentController } from "../controllers/appointmentController.js";

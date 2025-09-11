@@ -65,7 +65,7 @@ export function invalidateBrandCache(tenantId) {
 }
 
 /**
- * 🔁 COMPAT: versión síncrona con la MISMA firma anterior.
+ * COMPAT: versión síncrona con la MISMA firma anterior.
  * Usa datos ya cargados (por ejemplo desde el frontend o req.brand).
  * No consulta BD. No usa ENV. Devuelve null si falta.
  *

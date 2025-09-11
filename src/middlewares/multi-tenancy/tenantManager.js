@@ -1,4 +1,4 @@
-// middlewares/multi-tenancy/tenantManager.js
+// src/middlewares/multi-tenancy/tenantManager.js
 import mongoose from "mongoose";
 import ServicesSchema from "../../models/ServicesModel.js";
 import { appointmentSettingsSchemaDefinition } from "../../models/AppointmentSettingsModel.js";

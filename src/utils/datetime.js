@@ -1,3 +1,4 @@
+// src/utils/datetime.js
 export const formatDateTime = (date, tz) => {
   const d = new Date(date);
   return new Intl.DateTimeFormat("es-ES", {

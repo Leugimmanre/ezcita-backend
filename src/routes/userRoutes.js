@@ -1,4 +1,4 @@
-// userRoutes.js
+// src/routes/userRoutes.js
 import { Router } from "express";
 import { UserController } from "../controllers/userController.js";
 import { handleInputErrors } from "../middlewares/handleInputErrors.js";

@@ -1,5 +1,6 @@
+// src/models/ServicesModel.js
 import mongoose from "mongoose";
-// import validator from "validator";
+
 const serviceImageSchema = new mongoose.Schema(
   {
     url: { type: String, required: true, trim: true },

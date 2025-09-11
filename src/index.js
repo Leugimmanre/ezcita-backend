@@ -1,3 +1,4 @@
+// src/index.js
 import server from "./server.js";
 import colors from "colors";
 

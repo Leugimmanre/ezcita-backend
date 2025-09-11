@@ -1,4 +1,4 @@
-// Código en inglés; comentarios en español
+// src/controllers/brandSettingsController.js
 import path from "path";
 import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
