@@ -70,12 +70,10 @@ export const BrandSettingsController = {
   // Obtener ajustes de marca del tenant
   async get(req, res, next) {
     try {
-      // Obtener tenant desde query o header (fallback)
-      const tenant =
-        req.query.tenant || req.headers["x-tenant-id"] || req.tenantId;
+      // obtener tenant desde query o header
+      const tenant = req.query.tenant || req.headers["x-tenant-id"] || null;
 
       if (!tenant) {
-        // 400: la pantalla de login debe pasar ?tenant=...
         return res.status(400).json({
           success: false,
           error: "tenant required",
@@ -83,17 +81,20 @@ export const BrandSettingsController = {
         });
       }
 
-      // NO dependas de req.BrandSettings aquí
+      // Resolver el modelo vía tenantManager (no uses req.BrandSettings aquí)
       const BrandSettings = await tenantManager.getBrandSettingsModel(tenant);
+
       const doc = await BrandSettings.findOne({ tenantId: tenant }).lean();
 
-      // Puedes devolver null o un objeto por defecto si no existe
+      // Puedes devolver null o defaults si no existe
       return res.json({
         success: true,
         data: doc || null,
       });
-    } catch (e) {
-      next(e);
+    } catch (err) {
+      // log útil para Render
+      console.error("GET /api/brand error:", err?.message, err?.stack);
+      next(err);
     }
   },
 
