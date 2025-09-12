@@ -24,6 +24,7 @@ router.post(
     body("name").notEmpty(),
     body("email").isEmail(),
     body("password").isLength({ min: 6 }),
+    body("phone").optional(),
     handleInputErrors,
   ],
   UserController.createUser
@@ -46,6 +47,7 @@ router.put(
     param("id").isMongoId().withMessage("ID inválido"),
     body("name").optional(),
     body("email").optional().isEmail(),
+    body("phone").optional(),
     handleInputErrors,
   ],
   UserController.updateUser

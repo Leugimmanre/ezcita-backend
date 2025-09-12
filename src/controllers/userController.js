@@ -2,19 +2,27 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 
+const normalizePhone = (phone) => {
+  // Normaliza: recorta y colapsa espacios; mantiene '+' inicial si existe
+  if (!phone || typeof phone !== "string") return phone;
+  const trimmed = phone.trim();
+  // Reemplaza múltiples espacios por uno
+  return trimmed.replace(/\s+/g, " ");
+};
+
 const normalizeUserData = (data) => {
   if (data.email && typeof data.email === "string") {
     data.email = data.email.toLowerCase().trim();
+  }
+  if (data.phone && typeof data.phone === "string") {
+    data.phone = normalizePhone(data.phone);
   }
   return data;
 };
 
 export const UserController = {
-  // Crear usuario (admin)
   async createUser(req, res, next) {
     try {
-      console.log("Entrando a createUser con tenant:", req.tenantId);
-
       const normalizedData = normalizeUserData({ ...req.body });
 
       if (!req.User) {
@@ -40,14 +48,17 @@ export const UserController = {
 
       await user.save();
 
-      res.status(201).json({ success: true, data: user });
+      // Excluir password en la respuesta
+      const plain = user.toObject();
+      delete plain.password;
+
+      res.status(201).json({ success: true, data: plain });
     } catch (error) {
       console.error("Error en createUser:", error);
       return res.status(500).json({ success: false, error: error.message });
     }
   },
 
-  // Obtener todos
   async getAllUsers(req, res, next) {
     try {
       const users = await req.User.find({ tenantId: req.tenantId }).select(
@@ -59,7 +70,6 @@ export const UserController = {
     }
   },
 
-  // Obtener uno
   async getUserById(req, res, next) {
     try {
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -79,16 +89,17 @@ export const UserController = {
     }
   },
 
-  // Actualizar
   async updateUser(req, res, next) {
     try {
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
         return res.status(400).json({ message: "ID no válido" });
       }
 
+      const update = normalizeUserData({ ...req.body });
+
       const updated = await req.User.findOneAndUpdate(
         { _id: req.params.id, tenantId: req.tenantId },
-        req.body,
+        update,
         { new: true, runValidators: true }
       ).select("-password");
 
@@ -101,7 +112,6 @@ export const UserController = {
     }
   },
 
-  // Eliminar
   async deleteUser(req, res, next) {
     try {
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -121,11 +131,9 @@ export const UserController = {
     }
   },
 
-  // Obtener el perfil del usuario autenticado
   async me(req, res, next) {
     try {
       if (!req.User) {
-        // Si pasa esto, es orden de middlewares incorrecto
         return res.status(500).json({
           success: false,
           error: "User model not initialized. Check tenantMiddleware order.",
@@ -148,16 +156,14 @@ export const UserController = {
       next(error);
     }
   },
-  // Cambiar contraseña de un usuario
+
   async changePassword(req, res) {
     try {
       const { id } = req.params;
       const { currentPassword, newPassword } = req.body;
 
-      // Model multi-tenant inyectado por tenantMiddleware
       const User = req.User;
 
-      // 1) Validaciones básicas
       if (!currentPassword || !newPassword) {
         return res.status(400).json({
           success: false,
@@ -172,7 +178,6 @@ export const UserController = {
         });
       }
 
-      // 2) Buscar usuario
       const user = await User.findById(id).select("+password");
       if (!user) {
         return res
@@ -180,15 +185,16 @@ export const UserController = {
           .json({ success: false, message: "Usuario no encontrado" });
       }
 
-      // 3) Comprobar que el usuario autenticado puede cambiar esta contraseña
-      //    (mismo usuario o admin; esto depende de tu sistema de roles)
-      if (req.user.id !== String(user._id) && req.user.role !== "admin") {
+      // ⚠️ Ajuste a tu modelo: usas `admin: Boolean`, no `role`.
+      const isSelf = req.user.id === String(user._id);
+      const isAdmin = !!req.user.admin; // asegúrate de inyectar `admin` en el JWT
+
+      if (!isSelf && !isAdmin) {
         return res
           .status(403)
           .json({ success: false, message: "No autorizado" });
       }
 
-      // 4) Verificar contraseña actual
       const isValid = await bcrypt.compare(
         currentPassword,
         user.password || ""
@@ -200,11 +206,9 @@ export const UserController = {
         });
       }
 
-      // 5) Hashear nueva contraseña
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(newPassword, salt);
 
-      // 6) Guardar
       await user.save();
 
       return res.json({ success: true, data: { id: user._id } });
@@ -217,7 +221,6 @@ export const UserController = {
     }
   },
 
-  // Búsqueda simple por nombre/apellido/email (multi-tenant)
   async search(req, res, next) {
     try {
       const q = String(req.query.q || "").trim();
@@ -227,17 +230,22 @@ export const UserController = {
         return res.json({ users: [] });
       }
 
-      // Si tu tenantMiddleware inyecta req.Users, úsalo. Si no, usa el modelo global.
-      const Users = req.Users || req.app.get("UserModel");
+      const Users = req.User || req.app.get("UserModel");
 
+      // Escapar regex y crear búsqueda insensible a mayúsculas
       const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       const filter = {
         tenantId: req.tenantId,
-        $or: [{ name: re }, { lastname: re }, { email: re }],
+        $or: [
+          { name: re },
+          { lastname: re },
+          { email: re },
+          { phone: re }, // ← incluir teléfono en búsquedas
+        ],
       };
 
       const users = await Users.find(filter)
-        .select("_id name lastname email")
+        .select("_id name lastname email phone")
         .limit(limit)
         .sort({ name: 1, lastname: 1 });
 
