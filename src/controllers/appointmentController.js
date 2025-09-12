@@ -224,7 +224,7 @@ export class AppointmentController {
 
       const appointments = await req.Appointments.find(filter)
         .populate({ path: "services", select: "name price duration" })
-        .populate("user", "name lastname email")
+        .populate("user", "name lastname phone email")
         .sort({ date: -1 })
         .skip((page - 1) * limit)
         .limit(parseInt(limit));
