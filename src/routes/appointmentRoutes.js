@@ -14,6 +14,19 @@ router.use(authMiddleware);
 // Luego resolvemos el tenant
 router.use(tenantMiddleware);
 
+
+// Comprobar disponibilidad para una fecha dada
+router.get(
+  "/availability",
+  [
+    query("date")
+      .notEmpty().withMessage("date es obligatorio (YYYY-MM-DD)")
+      .isISO8601().withMessage("date debe ser ISO8601"),
+    handleInputErrors,
+  ],
+  AppointmentController.availability
+);
+
 // Validaciones comunes
 const dateValidation = body("date")
   .notEmpty()

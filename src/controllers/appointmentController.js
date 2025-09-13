@@ -6,6 +6,10 @@ function isAdmin(req) {
   return req.user?.role === "admin";
 }
 
+// Convierte duración a minutos
+const toMinutes = (d, u) =>
+  (String(u || "").toLowerCase() === "horas" ? Number(d) * 60 : Number(d)) || 0;
+
 export class AppointmentController {
   // Crear nueva cita (flujo de usuario autenticado)
   static async createAppointment(req, res) {
@@ -28,12 +32,15 @@ export class AppointmentController {
       }
 
       const totalDuration = servicesData.reduce(
-        (sum, s) => sum + s.duration,
+        (sum, s) => sum + toMinutes(s.duration, s.durationUnit),
         0
       );
       const totalPrice = servicesData.reduce((sum, s) => sum + s.price, 0);
 
       const appointmentStart = new Date(date);
+      if (Number.isNaN(appointmentStart.getTime())) {
+        return res.status(400).json({ error: "Fecha inválida" });
+      }
       const appointmentEnd = new Date(appointmentStart);
       appointmentEnd.setMinutes(appointmentEnd.getMinutes() + totalDuration);
 
@@ -223,7 +230,10 @@ export class AppointmentController {
       if (status) filter.status = status;
 
       const appointments = await req.Appointments.find(filter)
-        .populate({ path: "services", select: "name price duration" })
+        .populate({
+          path: "services",
+          select: "name price duration durationUnit",
+        })
         .populate("user", "name lastname phone email")
         .sort({ date: -1 })
         .skip((page - 1) * limit)
@@ -250,7 +260,7 @@ export class AppointmentController {
 
       const appointment = await req.Appointments.findById(id)
         .populate("user", "name email lastname")
-        .populate("services", "name price duration");
+        .populate("services", "name price duration durationUnit");
 
       if (!appointment) {
         return res.status(404).json({ error: "Cita no encontrada" });
@@ -291,7 +301,7 @@ export class AppointmentController {
         });
 
         const totalDuration = servicesData.reduce(
-          (sum, s) => sum + s.duration,
+          (sum, s) => sum + toMinutes(s.duration, s.durationUnit),
           0
         );
         const totalPrice = servicesData.reduce((sum, s) => sum + s.price, 0);
@@ -328,7 +338,7 @@ export class AppointmentController {
         updateData,
         { new: true, runValidators: true }
       )
-        .populate("services", "name price duration")
+        .populate("services", "name price duration durationUnit")
         .populate("user", "name email lastname");
 
       const servicesForEmail =
@@ -380,7 +390,7 @@ export class AppointmentController {
       const isAdmin = req.user.role === "admin";
 
       const appointment = await req.Appointments.findById(id)
-        .populate("services", "name price duration")
+        .populate("services", "name price duration durationUnit")
         .populate("user", "name email lastname");
 
       if (!appointment)
@@ -388,11 +398,9 @@ export class AppointmentController {
       if (!isAdmin && appointment.user._id.toString() !== userId)
         return res.status(403).json({ error: "No autorizado" });
       if (!["pending", "confirmed"].includes(appointment.status)) {
-        return res
-          .status(400)
-          .json({
-            error: "Solo se pueden cancelar citas pendientes o confirmadas",
-          });
+        return res.status(400).json({
+          error: "Solo se pueden cancelar citas pendientes o confirmadas",
+        });
       }
 
       appointment.status = "cancelled";
@@ -542,6 +550,37 @@ export class AppointmentController {
     } catch (error) {
       console.error("Error en deleteAppointment:", error);
       res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Comprobar disponibilidad para una fecha dada
+  static async availability(req, res) {
+    try {
+      const { date } = req.query;
+      if (!date)
+        return res
+          .status(400)
+          .json({ error: "date es obligatorio (YYYY-MM-DD)" });
+
+      const dayStart = new Date(`${date}T00:00:00.000Z`);
+      const dayEnd = new Date(`${date}T23:59:59.999Z`);
+
+      const appts = await req.Appointments.find({
+        tenantId: req.tenantId,
+        status: { $in: ["pending", "confirmed"] },
+        date: { $gte: dayStart, $lte: dayEnd },
+      }).select("date duration"); // sin PII
+
+      // Devuelve solo lo mínimo
+      const busy = appts.map((a) => ({
+        start: a.date, // ISO
+        duration: a.duration, // minutos
+      }));
+
+      res.json({ busy });
+    } catch (e) {
+      console.error("availability error:", e);
+      res.status(500).json({ error: "Error calculando disponibilidad" });
     }
   }
 }

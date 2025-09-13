@@ -9,6 +9,18 @@ const normalizeServiceData = (data) => {
   if (data.category && typeof data.category === "string") {
     data.category = data.category.toLowerCase();
   }
+
+  // Duración siempre en minutos
+  if (data.duration != null) {
+    const unit = (data.durationUnit || "").toLowerCase(); // "minutos" | "horas"
+    const n = Number(data.duration); // admite "1" o 1.5
+    if (!Number.isNaN(n)) {
+      const minutes = unit === "horas" ? Math.round(n * 60) : Math.round(n);
+      data.duration = minutes;
+      data.durationUnit = "minutos"; // guardamos normalizado
+    }
+  }
+
   return data;
 };
 
