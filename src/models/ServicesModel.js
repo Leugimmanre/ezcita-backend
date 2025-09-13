@@ -51,8 +51,8 @@ const servicesSchema = new mongoose.Schema(
     },
     durationUnit: {
       type: String,
-      enum: ["min.", "horas"],
-      default: "min.",
+      enum: ["minutos", "horas"],
+      default: "minutos",
     },
     tenantId: {
       type: String,
