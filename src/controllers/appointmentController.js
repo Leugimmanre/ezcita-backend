@@ -138,7 +138,7 @@ export class AppointmentController {
       }
 
       const totalDuration = servicesData.reduce(
-        (sum, s) => sum + s.duration,
+        (sum, s) => sum + toMinutes(s.duration, s.durationUnit),
         0
       );
       const totalPrice = servicesData.reduce((sum, s) => sum + s.price, 0);
