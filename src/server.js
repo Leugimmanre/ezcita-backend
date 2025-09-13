@@ -14,6 +14,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import brandSettingsRoutes from "./routes/brandSettingsRoutes.js";
 import path from "path";
+import activityRoutes from "./routes/activityRoutes.js";
 
 // 1. Configuración inicial
 dotenv.config();
@@ -38,6 +39,7 @@ app.use("/api/appointments", appointmentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/brand", brandSettingsRoutes);
+app.use("/api/activity", activityRoutes);
 // Sirve archivos estáticos de uploads (solo lectura pública)
 app.use(
   "/static",

@@ -1,4 +1,7 @@
 // src/controllers/appointmentSettingsController.js
+import { logActivity } from "../utils/logActivity.js";
+import { pickDiff } from "../utils/diffChanges.js";
+
 const DEFAULT_SETTINGS = {
   startHour: 9, // 9:00
   endHour: 18, // 18:00
@@ -105,7 +108,12 @@ export const AppointmentSettingsController = {
   // POST/PUT: guardar o actualizar configuración
   async saveOrUpdateSettings(req, res, next) {
     try {
-      // Normalización de entrada
+      // 1) Lee el doc previo para diffs
+      const prevDoc = await req.AppointmentSettings.findOne({
+        tenantId: req.tenantId,
+      }).lean();
+
+      // 2) Normaliza payload
       const startHour = toHalfStep(
         clamp(num(req.body.startHour, DEFAULT_SETTINGS.startHour), 0, 23.5)
       );
@@ -133,7 +141,7 @@ export const AppointmentSettingsController = {
         50
       );
 
-      // Validaciones de coherencia
+      // 3) Validaciones
       const hoursError = validateHours({
         startHour,
         endHour,
@@ -144,7 +152,7 @@ export const AppointmentSettingsController = {
         return res.status(400).json({ success: false, error: hoursError });
       }
 
-      // Construimos payload final
+      // 4) Upsert
       const data = {
         tenantId: req.tenantId,
         startHour,
@@ -168,11 +176,36 @@ export const AppointmentSettingsController = {
         }
       );
 
-      res.status(200).json({
-        success: true,
-        data: updated,
-        msg: "Configuración guardada",
-      });
+      // 5) Log de actividad (no debe romper la respuesta aunque falle)
+      try {
+        const diff = pickDiff(prevDoc || {}, data, [
+          "startHour",
+          "endHour",
+          "interval",
+          "lunchStart",
+          "lunchEnd",
+          "maxMonthsAhead",
+          "workingDays",
+          "staffCount",
+        ]);
+
+        await logActivity(req, {
+          category: "Horarios",
+          action: prevDoc
+            ? "Actualizó ajustes de agenda"
+            : "Creó ajustes de agenda",
+          metadata: Object.keys(diff).length ? diff : undefined,
+        });
+      } catch (logErr) {
+        console.error(
+          "[appointmentSettings save] activity log failed:",
+          logErr?.message
+        );
+      }
+
+      return res
+        .status(200)
+        .json({ success: true, data: updated, msg: "Configuración guardada" });
     } catch (err) {
       next(err);
     }

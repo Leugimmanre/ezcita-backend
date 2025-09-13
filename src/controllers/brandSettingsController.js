@@ -5,6 +5,8 @@ import cloudinary from "../config/cloudinary.js";
 import { invalidateBrandCache } from "../config/brand.js";
 import { cloudFolder } from "../utils/cloudinaryFolders.js";
 import tenantManager from "../middlewares/multi-tenancy/tenantManager.js";
+import { pickDiff } from "../utils/diffChanges.js";
+import { logActivity } from "../utils/logActivity.js";
 
 // helper: filtra solo claves definidas
 function pickDefined(obj, keys) {
@@ -112,6 +114,8 @@ export const BrandSettingsController = {
         });
       }
 
+      const prevDoc = await BrandSettings.findOne({ tenantId }).lean();
+
       const setDoc = pickDefined(req.body, [
         "brandName",
         "brandDomain",
@@ -127,12 +131,33 @@ export const BrandSettingsController = {
       );
 
       invalidateBrandCache(tenantId);
-      res.json({ success: true, data: doc });
+
+      // Log protegido (si falla no rompe la respuesta)
+      try {
+        const diff = pickDiff(prevDoc || {}, doc.toObject(), [
+          "brandName",
+          "brandDomain",
+          "contactEmail",
+          "timezone",
+          "frontendUrl",
+        ]);
+
+        await logActivity(req, {
+          category: "Marca",
+          action: prevDoc
+            ? "Actualizó identidad de marca"
+            : "Creó identidad de marca",
+          metadata: Object.keys(diff).length ? diff : undefined,
+        });
+      } catch (e) {
+        console.error("[brand.upsert] log/diff error:", e?.message);
+      }
+
+      return res.json({ success: true, data: doc });
     } catch (e) {
       next(e);
     }
   },
-
   // Subir/Sobrescribir logo (campo 'logo' en multipart/form-data con memoryStorage)
   async uploadLogo(req, res, next) {
     try {

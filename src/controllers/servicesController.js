@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import fs from "fs";
 import cloudinary from "../config/cloudinary.js";
 import { slugifyTenant } from "../utils/slugifyTenant.js";
+import { logActivity } from "../utils/logActivity.js";
+import { pickDiff } from "../utils/diffChanges.js";
 
 // Normaliza datos del servicio
 const normalizeServiceData = (data) => {
@@ -137,6 +139,7 @@ export const ServicesController = {
 
   // Actualiza un servicio por ID
   async updateService(req, res, next) {
+    const { id } = req.params;
     try {
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
         return res.status(400).json({
@@ -144,6 +147,11 @@ export const ServicesController = {
           error: "ID no válido",
         });
       }
+
+      const existing = await req.Services.findOne({
+        _id: id,
+        tenantId: req.tenantId,
+      }).lean();
 
       const cleanedData = normalizeServiceData({ ...req.body });
       if (cleanedData.category === "") delete cleanedData.category;
@@ -160,6 +168,23 @@ export const ServicesController = {
           error: "Servicio no encontrado",
         });
       }
+
+      // Log con diffs útiles
+      const diff = pickDiff(existing || {}, updated.toObject(), [
+        "name",
+        "price",
+        "description",
+        "category",
+        "duration",
+        "active",
+      ]);
+
+      await logActivity(req, {
+        category: "Servicios",
+        action: `Editó servicio: ${updated.name}`,
+        entityId: String(updated._id),
+        metadata: Object.keys(diff).length ? diff : undefined,
+      });
 
       res.json({
         success: true,

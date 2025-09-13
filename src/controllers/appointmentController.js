@@ -1,6 +1,8 @@
 // src/controllers/appointmentController.js
 import { sendAppointmentEmail } from "../emails/email.js";
 import { buildEmailUser } from "../emails/emailUser.js";
+import { pickDiff } from "../utils/diffChanges.js";
+import { logActivity } from "../utils/logActivity.js";
 
 function isAdmin(req) {
   return req.user?.role === "admin";
@@ -74,6 +76,22 @@ export class AppointmentController {
       });
 
       await appointment.save();
+
+      // Log actividad
+      await logActivity(req, {
+        tenantId: req.tenantId,
+        category: "Citas",
+        action: "Creó cita",
+        entityId: String(appointment._id),
+        metadata: {
+          date: appointment.date,
+          status: appointment.status,
+          userId: String(appointment.user),
+          services: toIdArr(appointment.services),
+          totalPrice: appointment.totalPrice,
+          duration: appointment.duration,
+        },
+      });
 
       const populatedServices = servicesData.map((s) => ({
         name: s.name,
@@ -186,6 +204,22 @@ export class AppointmentController {
 
       await appointment.save();
 
+      // Log actividad
+      await logActivity(req, {
+        tenantId: req.tenantId,
+        category: "Citas",
+        action: "Creó cita (admin)",
+        entityId: String(appointment._id),
+        metadata: {
+          date: appointment.date,
+          status: appointment.status,
+          userId: String(appointment.user),
+          services: toIdArr(appointment.services),
+          totalPrice: appointment.totalPrice,
+          duration: appointment.duration,
+        },
+      });
+
       const servicesForEmail = servicesData.map((s) => ({
         name: s.name,
         price: s.price,
@@ -290,6 +324,16 @@ export class AppointmentController {
       if (!isAdmin && appointment.user.toString() !== userId)
         return res.status(403).json({ error: "No autorizado" });
 
+      // Guarda el snapshot previo para comparar luego
+      const prevSnap = {
+        date: appointment.date,
+        status: appointment.status,
+        notes: appointment.notes,
+        duration: appointment.duration,
+        totalPrice: appointment.totalPrice,
+        services: toIdArr(appointment.services),
+        userId: String(appointment.user),
+      };
       let servicesData;
       if (updateData.services || updateData.date) {
         const apptSettings = await req.AppointmentSettings.findOne({
@@ -372,6 +416,42 @@ export class AppointmentController {
         }).catch((e) => console.error("Email error (updated):", e));
       }
 
+      const afterSnap = {
+        date: updatedAppointment.date,
+        status: updatedAppointment.status,
+        notes: updatedAppointment.notes,
+        duration: updatedAppointment.duration,
+        totalPrice: updatedAppointment.totalPrice,
+        services: toIdArr(updatedAppointment.services),
+        userId: String(updatedAppointment.user?._id || updatedAppointment.user),
+      };
+
+      // diff “humano” (campos simples)
+      const baseDiff = pickDiff(prevSnap, afterSnap, [
+        "date",
+        "status",
+        "notes",
+        "duration",
+        "totalPrice",
+        "userId",
+      ]);
+
+      // diff de servicios (array)
+      if (
+        JSON.stringify([...prevSnap.services].sort()) !==
+        JSON.stringify([...afterSnap.services].sort())
+      ) {
+        baseDiff.services = { from: prevSnap.services, to: afterSnap.services };
+      }
+
+      await logActivity(req, {
+        tenantId: req.tenantId,
+        category: "Citas",
+        action: "Actualizó cita",
+        entityId: String(id),
+        metadata: Object.keys(baseDiff).length ? baseDiff : undefined,
+      });
+
       res.json({
         message: "Cita actualizada exitosamente",
         appointment: updatedAppointment,
@@ -405,6 +485,15 @@ export class AppointmentController {
 
       appointment.status = "cancelled";
       await appointment.save();
+
+      // Log actividad
+      await logActivity(req, {
+        tenantId: req.tenantId,
+        category: "Citas",
+        action: "Canceló cita",
+        entityId: String(appointment._id),
+        metadata: { date: appointment.date },
+      });
 
       const user = await buildEmailUser(req, appointment, appointment.user);
       const servicesForEmail =
@@ -456,6 +545,15 @@ export class AppointmentController {
       appointment.status = "pending";
       await appointment.save();
 
+      // Log actividad
+      await logActivity(req, {
+        tenantId: req.tenantId,
+        category: "Citas",
+        action: "Reactivó cita",
+        entityId: String(appointment._id),
+        metadata: { status: appointment.status },
+      });
+
       const user = await buildEmailUser(req, appointment, appointment.user);
 
       if (user?.email) {
@@ -494,6 +592,15 @@ export class AppointmentController {
 
       appointment.status = "completed";
       await appointment.save();
+
+      // Log actividad
+      await logActivity(req, {
+        tenantId: req.tenantId,
+        category: "Citas",
+        action: "Completó cita",
+        entityId: String(appointment._id),
+        metadata: { date: appointment.date },
+      });
 
       const user = await buildEmailUser(req, appointment, appointment.user);
 
@@ -545,6 +652,15 @@ export class AppointmentController {
           tenantId: req.tenantId,
         }).catch((e) => console.error("Email error (deleted):", e));
       }
+
+      // Log actividad
+      await logActivity(req, {
+        tenantId: req.tenantId,
+        category: "Citas",
+        action: "Eliminó cita",
+        entityId: String(id),
+        metadata: { date: appointment.date, status: appointment.status },
+      });
 
       res.json({ message: "Cita eliminada permanentemente", appointment });
     } catch (error) {
