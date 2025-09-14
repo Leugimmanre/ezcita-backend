@@ -16,6 +16,8 @@ export const generateJWT = (user, tenantId) => {
   // Normalizamos el payload a lo que espera authMiddleware
   const payload = {
     id: String(user._id), // ← siempre string
+    name: user.name || user.fullName || user.displayName || user.username || "User",
+    lastname: user.lastname || "",
     email: user.email,
     role: user.admin ? "admin" : "user",
     tenantId,

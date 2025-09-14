@@ -14,6 +14,9 @@ export const authMiddleware = (req, res, next) => {
     // Guardamos la info del usuario en req.user
     req.user = {
       id: decoded.id,
+      _id: decoded.id,
+      name: decoded.name,
+      lastname: decoded.lastname,
       email: decoded.email,
       role: decoded.role,
       tenantId: decoded.tenantId,

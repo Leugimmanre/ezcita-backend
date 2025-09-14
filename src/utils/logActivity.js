@@ -4,17 +4,19 @@ import Activity from "../models/ActivityModel.js";
 
 function resolveUserName(user) {
   if (!user) return "System";
-  return (
+  const first =
     user.name ||
-    user.fullName ||
+    user.firstName ||
+    user.firstname ||
+    user.given_name ||
+    user.givenName ||
     user.displayName ||
-    user.username ||
-    user.email ||
-    (user.firstName && user.lastName
-      ? `${user.firstName} ${user.lastName}`
-      : null) ||
-    "System"
-  );
+    user.username;
+  const last =
+    user.lastname || user.lastName || user.family_name || user.familyName;
+  if (first && last) return `${first} ${last}`.trim();
+  if (first) return String(first);
+  return user.email || "System";
 }
 
 function resolveTenantId(req) {
