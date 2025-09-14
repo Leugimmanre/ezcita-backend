@@ -4,9 +4,21 @@ import { buildEmailUser } from "../emails/emailUser.js";
 import { pickDiff } from "../utils/diffChanges.js";
 import { logActivity } from "../utils/logActivity.js";
 
+// Verifica si el usuario es admin
 function isAdmin(req) {
   return req.user?.role === "admin";
 }
+
+// Helpers de IDs (deja ambos en el módulo)
+const toId = (v) => (v ? String(v) : "");
+const toIdArr = (arr) =>
+  Array.isArray(arr)
+    ? arr.map((x) =>
+        typeof x === "object" && x !== null
+          ? String(x._id ?? x.id ?? x)
+          : String(x)
+      )
+    : [];
 
 // Convierte duración a minutos
 const toMinutes = (d, u) =>
