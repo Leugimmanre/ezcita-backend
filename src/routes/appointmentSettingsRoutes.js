@@ -16,7 +16,7 @@ router.use(tenantMiddleware);
 // Obtener settings
 router.get("/", AppointmentSettingsController.getSettings);
 
-// NUEVO: validador fuerte para dayBlocks avanzado
+// Validador fuerte para dayBlocks avanzado
 const dayBlocksValidator = body("dayBlocks")
   .custom((db) => {
     if (!db || typeof db !== "object") {

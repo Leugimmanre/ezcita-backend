@@ -393,6 +393,13 @@ export class AppointmentController {
         ? { tenantId: req.tenantId }
         : { user: userId, tenantId: req.tenantId };
 
+      // Por defecto, excluimos "completed" del listado normal
+      if (!status) {
+        filter.status = { $in: ["pending", "confirmed", "cancelled"] };
+      } else {
+        filter.status = status; // si lo piden explícito, respetarlo
+      }
+      // Rangos de fecha
       if (startDate && endDate) {
         filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
       }
@@ -596,11 +603,9 @@ export class AppointmentController {
       if (!isAdminUser && appointment.user._id.toString() !== userId)
         return res.status(403).json({ error: "No autorizado" });
       if (!["pending", "confirmed"].includes(appointment.status)) {
-        return res
-          .status(400)
-          .json({
-            error: "Solo se pueden cancelar citas pendientes o confirmadas",
-          });
+        return res.status(400).json({
+          error: "Solo se pueden cancelar citas pendientes o confirmadas",
+        });
       }
 
       appointment.status = "cancelled";
@@ -637,6 +642,24 @@ export class AppointmentController {
       res.json({ message: "Cita cancelada exitosamente", appointment });
     } catch (error) {
       res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Eliminar (admin)
+  static async deleteAppointment(req, res) {
+    try {
+      if (req.user.role !== "admin")
+        return res.status(403).json({ error: "No autorizado" });
+      const { id } = req.params;
+      const deleted = await req.Appointments.findOneAndDelete({
+        _id: id,
+        tenantId: req.tenantId,
+      });
+      if (!deleted)
+        return res.status(404).json({ error: "Cita no encontrada" });
+      res.json({ message: "Cita eliminada" });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
   }
 
@@ -776,6 +799,80 @@ export class AppointmentController {
     } catch (e) {
       console.error("availability error:", e);
       res.status(500).json({ error: "Error calculando disponibilidad" });
+    }
+  }
+
+  // Histórico de citas completadas (usuario y admin)
+  static async getCompletedHistory(req, res) {
+    try {
+      const { page = 1, limit = 10, startDate, endDate } = req.query;
+      const userId = req.user.id;
+      const isAdminUser = req.user.role === "admin";
+
+      const filter = isAdminUser
+        ? { tenantId: req.tenantId, status: "completed" }
+        : { user: userId, tenantId: req.tenantId, status: "completed" };
+
+      if (startDate && endDate) {
+        filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      }
+
+      const appointments = await req.Appointments.find(filter)
+        .populate({
+          path: "services",
+          select: "name price duration durationUnit",
+        })
+        .populate("user", "name lastname phone email")
+        .sort({ date: -1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit));
+
+      res.json({
+        total: await req.Appointments.countDocuments(filter),
+        page: parseInt(page),
+        limit: parseInt(limit),
+        appointments,
+      });
+    } catch (error) {
+      console.error("Error en getCompletedHistory:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Listado admin con filtros avanzados
+  static async adminListAppointments(req, res) {
+    try {
+      // paginación
+      const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+      const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
+      const skip = (page - 1) * limit;
+
+      // filtros
+      const { status, startDate, endDate } = req.query;
+      const q = { tenantId: req.tenantId }; // asegúrate de filtrar por tenant
+
+      if (status && status !== "all") q.status = status;
+
+      if (startDate || endDate) {
+        q.date = {};
+        if (startDate) q.date.$gte = new Date(startDate);
+        if (endDate) q.date.$lt = new Date(endDate); // fin exclusivo
+      }
+
+      const [items, total] = await Promise.all([
+        req.Appointments.find(q)
+          .sort({ date: -1 })
+          .skip(skip)
+          .limit(limit)
+          .populate("user", "name lastname email phone")
+          .populate("services", "name price duration"),
+        req.Appointments.countDocuments(q),
+      ]);
+
+      res.json({ total, page, limit, appointments: items });
+    } catch (err) {
+      console.error("adminListAppointments error:", err);
+      res.status(500).json({ error: "No se pudieron cargar las citas" });
     }
   }
 }

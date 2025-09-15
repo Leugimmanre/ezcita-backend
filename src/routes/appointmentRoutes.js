@@ -30,6 +30,36 @@ router.get(
   AppointmentController.availability
 );
 
+// Histórico de citas completadas (usuario o admin)
+router.get(
+  "/history",
+  [
+    query("page").optional().isInt({ min: 1 }).toInt(),
+    query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
+    handleInputErrors,
+  ],
+  AppointmentController.getCompletedHistory
+);
+
+// LISTADO ADMIN con filtros y paginación (page, limit, status, startDate, endDate)
+router.get(
+  "/statistics",
+  [
+    (req, res, next) =>
+      req.user?.role === "admin"
+        ? next()
+        : res.status(403).json({ error: "No autorizado" }),
+    query("status").optional().isString(),
+    query("startDate").optional().isISO8601(),
+    query("endDate").optional().isISO8601(),
+    query("page").optional().isInt({ min: 1 }).toInt(),
+    query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
+    handleInputErrors,
+  ],
+  (req, res) => AppointmentController.adminListAppointments(req, res)
+);
+
+// Validadores
 const dateValidation = body("date")
   .notEmpty()
   .withMessage("La fecha es obligatoria")

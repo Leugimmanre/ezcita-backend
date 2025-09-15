@@ -42,7 +42,7 @@ function validateNoOverlap(blocks) {
 // Esquema SOLO modo avanzado
 const appointmentSettingsSchema = new mongoose.Schema(
   {
-    tenantId: { type: String, required: true, index: true }, // NUEVO
+    tenantId: { type: String, required: true, index: true },
 
     // Bloques por cada día (obligatorio, sin backfill legacy)
     dayBlocks: {

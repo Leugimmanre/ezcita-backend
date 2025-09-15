@@ -15,6 +15,7 @@ import userRoutes from "./routes/userRoutes.js";
 import brandSettingsRoutes from "./routes/brandSettingsRoutes.js";
 import path from "path";
 import activityRoutes from "./routes/activityRoutes.js";
+import { startCron } from "./cron/index.js";
 
 // 1. Configuración inicial
 dotenv.config();
@@ -40,11 +41,18 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/brand", brandSettingsRoutes);
 app.use("/api/activity", activityRoutes);
+
+// Iniciar cron jobs
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 // Sirve archivos estáticos de uploads (solo lectura pública)
 app.use(
   "/static",
   cors({ origin: "*", maxAge: 86400 }),
-  express.static(path.resolve("uploads"), {
+  express.static(path.resolve(__dirname, "uploads"), {
     etag: false,
     maxAge: 0,
     setHeaders: (res) => {
@@ -58,6 +66,7 @@ app.use(
     },
   })
 );
+
 // 7. Manejo de errores global
 app.use((err, req, res, next) => {
   console.error("Error:", err.stack);
@@ -77,19 +86,6 @@ app.get("/api/health", (req, res) => {
 });
 
 // 9. Cron Job para eliminar citas canceladas hace más de 30 minutos
-cron.schedule("*/5 * * * *", async () => {
-  // se ejecuta cada 5 minutos
-  const cutoff = new Date();
-  cutoff.setMinutes(cutoff.getMinutes() - 30);
-
-  const result = await Appointment.deleteMany({
-    status: { $in: ["cancelled", "completed"] }, // Eliminamos canceladas y completadas
-    updatedAt: { $lt: cutoff },
-  });
-
-  console.log(
-    `🧹 Eliminadas ${result.deletedCount} citas canceladas o completadas hace más de 30 min`
-  );
-});
+startCron();
 
 export default app;
