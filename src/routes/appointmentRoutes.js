@@ -9,25 +9,27 @@ import { tenantMiddleware } from "../middlewares/multi-tenancy/tenantMiddleware.
 
 const router = Router();
 
-// Primero validamos JWT
+// Autenticación y tenant
 router.use(authMiddleware);
-// Luego resolvemos el tenant
 router.use(tenantMiddleware);
 
-
-// Comprobar disponibilidad para una fecha dada
+// Disponibilidad por fecha (YYYY-MM-DD)
 router.get(
   "/availability",
   [
     query("date")
-      .notEmpty().withMessage("date es obligatorio (YYYY-MM-DD)")
-      .isISO8601().withMessage("date debe ser ISO8601"),
+      .notEmpty()
+      .withMessage("date es obligatorio (YYYY-MM-DD)")
+      .matches(/^\d{4}-\d{2}-\d{2}$/)
+      .withMessage("date debe ser YYYY-MM-DD"),
+    query("excludeId")
+      .optional()
+      .custom((v) => mongoose.isValidObjectId(v)),
     handleInputErrors,
   ],
   AppointmentController.availability
 );
 
-// Validaciones comunes
 const dateValidation = body("date")
   .notEmpty()
   .withMessage("La fecha es obligatoria")
@@ -42,9 +44,9 @@ const dateValidation = body("date")
 const servicesValidation = body("services")
   .isArray({ min: 1 })
   .withMessage("Debe seleccionar al menos un servicio")
-  .custom((services) => {
-    return services.every((id) => mongoose.Types.ObjectId.isValid(id));
-  })
+  .custom((services) =>
+    services.every((id) => mongoose.Types.ObjectId.isValid(id))
+  )
   .withMessage("Cada servicio debe tener un ID válido");
 
 const statusValidation = body("status")
@@ -52,15 +54,7 @@ const statusValidation = body("status")
   .isIn(["pending", "confirmed", "cancelled", "completed"])
   .withMessage("Estado no válido");
 
-// Middleware inline para admin
-function requireAdmin(req, res, next) {
-  if (req.user?.role !== "admin") {
-    return res.status(403).json({ error: "No autorizado" });
-  }
-  next();
-}
-
-// Crear cita (usuario autenticado)
+// Crear cita (usuario)
 router.post(
   "/",
   [
@@ -72,12 +66,18 @@ router.post(
   AppointmentController.createAppointment
 );
 
-// Crear cita como ADMIN (para cualquier usuario)
+// Crear cita como ADMIN
 router.post(
   "/admin",
   [
-    requireAdmin,
-    body("userId").notEmpty().isMongoId().withMessage("userId inválido"),
+    (req, res, next) =>
+      req.user?.role === "admin"
+        ? next()
+        : res.status(403).json({ error: "No autorizado" }),
+    body("userId")
+      .notEmpty()
+      .custom((v) => mongoose.isValidObjectId(v))
+      .withMessage("userId inválido"),
     dateValidation,
     servicesValidation,
     statusValidation,
@@ -87,18 +87,12 @@ router.post(
   AppointmentController.createAppointmentByAdmin
 );
 
-// Obtener citas con filtros
+// Listado con filtros
 router.get(
   "/",
   [
-    query("startDate")
-      .optional()
-      .isISO8601()
-      .withMessage("Fecha de inicio inválida"),
-    query("endDate")
-      .optional()
-      .isISO8601()
-      .withMessage("Fecha de fin inválida"),
+    query("startDate").optional().isISO8601(),
+    query("endDate").optional().isISO8601(),
     query("status")
       .optional()
       .isIn(["pending", "confirmed", "cancelled", "completed"]),
@@ -109,18 +103,18 @@ router.get(
   AppointmentController.getAppointments
 );
 
-// Obtener cita por ID
+// Obtener por ID
 router.get(
   "/:id",
-  [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
+  [param("id").custom((v) => mongoose.isValidObjectId(v)), handleInputErrors],
   AppointmentController.getAppointmentById
 );
 
-// Actualizar cita (admin o dueño)
+// Actualizar cita
 router.put(
   "/:id",
   [
-    param("id").isMongoId().withMessage("ID no válido"),
+    param("id").custom((v) => mongoose.isValidObjectId(v)),
     dateValidation.optional(),
     servicesValidation.optional(),
     statusValidation,
@@ -130,32 +124,28 @@ router.put(
   AppointmentController.updateAppointment
 );
 
-// Cancelar cita
+// Cancelar
 router.patch(
   "/:id/cancel",
-  [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
+  [param("id").custom((v) => mongoose.isValidObjectId(v)), handleInputErrors],
   AppointmentController.cancelAppointment
 );
 
-// Reactivar cita cancelada
+// Reactivar
 router.patch(
   "/:id/reactivate",
-  [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
+  [param("id").custom((v) => mongoose.isValidObjectId(v)), handleInputErrors],
   AppointmentController.reactivateAppointment
 );
 
-// Marcar cita como completada
-router.patch(
-  "/:id/complete",
-  [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
-  AppointmentController.completeAppointment
+// Completar (admin)
+router.patch("/:id/complete", (req, res, next) =>
+  AppointmentController.completeAppointment(req, res, next)
 );
 
-// Eliminar cita (solo admin)
-router.delete(
-  "/:id",
-  [param("id").isMongoId().withMessage("ID no válido"), handleInputErrors],
-  AppointmentController.deleteAppointment
+// Eliminar (admin)
+router.delete("/:id", (req, res, next) =>
+  AppointmentController.deleteAppointment(req, res, next)
 );
 
 export default router;

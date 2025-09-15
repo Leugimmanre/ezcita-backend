@@ -1,5 +1,5 @@
 // src/utils/diffChanges.js
-// Utilidad simple para calcular diffs (solo campos listados)
+// Utilidad simple para calcular diferencias (diff) (solo campos listados)
 export function pickDiff(prev = {}, next = {}, keys = []) {
   const diff = {};
   for (const k of keys) {

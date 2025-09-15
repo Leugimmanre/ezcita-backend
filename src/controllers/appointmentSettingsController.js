@@ -2,84 +2,66 @@
 import { logActivity } from "../utils/logActivity.js";
 import { pickDiff } from "../utils/diffChanges.js";
 
-const DEFAULT_SETTINGS = {
-  startHour: 9, // 9:00
-  endHour: 18, // 18:00
-  interval: 30, // minutos, múltiplo de 5
-  lunchStart: 13, // 13:00
-  lunchEnd: 15, // 15:00
-  maxMonthsAhead: 2, // meses máximo para reservar
-  workingDays: [1, 2, 3, 4, 5], // 0=Dom ... 6=Sáb -> L-V
-  staffCount: 1, // capacidad simultánea por franja
+// Defaults SOLO modo avanzado
+const DEFAULT_ADVANCED = {
+  // Ejemplo útil por defecto: L-V 09:00-13:00 y 15:00-18:00
+  dayBlocks: {
+    monday: [
+      { start: "09:00", end: "13:00" },
+      { start: "15:00", end: "18:00" },
+    ],
+    tuesday: [
+      { start: "09:00", end: "13:00" },
+      { start: "15:00", end: "18:00" },
+    ],
+    wednesday: [
+      { start: "09:00", end: "13:00" },
+      { start: "15:00", end: "18:00" },
+    ],
+    thursday: [
+      { start: "09:00", end: "13:00" },
+      { start: "15:00", end: "18:00" },
+    ],
+    friday: [
+      { start: "09:00", end: "13:00" },
+      { start: "15:00", end: "18:00" },
+    ],
+    saturday: [],
+    sunday: [],
+  },
+  interval: 30,
+  maxMonthsAhead: 2,
+  staffCount: 1,
+  closedDates: [],
+  timezone: "Europe/Madrid",
 };
 
-// ─────────────────────────────────────────────────────────────
-// Helpers de validación / normalización
-// ─────────────────────────────────────────────────────────────
-
-// fuerza número; si NaN usa fallback
-function num(x, fallback) {
-  const n = Number(x);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-// redondea a saltos de 0.5 (ej. 9.25 -> 9.5 ; 9.74 -> 9.5 ; 9.76 -> 10.0)
-function toHalfStep(x) {
-  return Math.round(x * 2) / 2;
-}
-
-// limita a rango [min, max]
-function clamp(x, min, max) {
-  return Math.min(max, Math.max(min, x));
-}
-
-// intervalo: entero, múltiplo de 5, mínimo 5, máximo 240
-function normalizeInterval(x) {
-  let n = Math.round(num(x, DEFAULT_SETTINGS.interval));
-  if (n < 5) n = 5;
-  if (n > 240) n = 240;
-  if (n % 5 !== 0) {
-    // fuerza múltiplo de 5 más cercano
-    n = Math.round(n / 5) * 5;
+// Sanitizador estricto de dayBlocks avanzado
+function sanitizeDayBlocks(db) {
+  const keys = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ];
+  const out = {};
+  for (const k of keys) {
+    const arr = Array.isArray(db?.[k]) ? db[k] : [];
+    out[k] = arr
+      .filter((b) => b && typeof b === "object")
+      .map((b) => ({
+        start: String(b.start || "").slice(0, 5),
+        end: String(b.end || "").slice(0, 5),
+      }));
   }
-  return n;
+  return out;
 }
-
-// workingDays: array único de enteros 0..6 ordenados
-function normalizeWorkingDays(arr) {
-  if (!Array.isArray(arr)) return DEFAULT_SETTINGS.workingDays;
-  const set = new Set(
-    arr
-      .map((d) => Number(d))
-      .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
-  );
-  if (set.size === 0) return DEFAULT_SETTINGS.workingDays;
-  return Array.from(set).sort((a, b) => a - b);
-}
-
-// valida consistencia básica de horas y comida
-function validateHours({ startHour, endHour, lunchStart, lunchEnd }) {
-  const sh = startHour;
-  const eh = endHour;
-  const ls = lunchStart;
-  const le = lunchEnd;
-
-  if (eh <= sh) {
-    return "La hora de fin debe ser mayor que la hora de inicio.";
-  }
-  if (le <= ls) {
-    return "La hora fin de comida debe ser mayor que la de inicio de comida.";
-  }
-  if (ls < sh || le > eh) {
-    return "La franja de comida debe estar completamente dentro del horario laboral.";
-  }
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────────
 
 export const AppointmentSettingsController = {
-  // GET settings del tenant (con defaults si no existen)
+  // GET settings del tenant (sin legacy, con defaults avanzados)
   async getSettings(req, res, next) {
     try {
       const settings = await req.AppointmentSettings.findOne({
@@ -89,80 +71,63 @@ export const AppointmentSettingsController = {
       if (!settings) {
         return res.json({
           success: true,
-          data: { ...DEFAULT_SETTINGS, tenantId: req.tenantId },
+          data: { ...DEFAULT_ADVANCED, tenantId: req.tenantId },
         });
       }
 
-      // Garantiza staffCount en respuestas antiguas
       const data = settings.toObject();
-      if (typeof data.staffCount !== "number") {
-        data.staffCount = DEFAULT_SETTINGS.staffCount;
-      }
-
       res.json({ success: true, data });
     } catch (err) {
       next(err);
     }
   },
 
-  // POST/PUT: guardar o actualizar configuración
+  // POST/PUT solo modo avanzado
   async saveOrUpdateSettings(req, res, next) {
     try {
-      // 1) Lee el doc previo para diffs
       const prevDoc = await req.AppointmentSettings.findOne({
         tenantId: req.tenantId,
       }).lean();
 
-      // 2) Normaliza payload
-      const startHour = toHalfStep(
-        clamp(num(req.body.startHour, DEFAULT_SETTINGS.startHour), 0, 23.5)
+      const dayBlocks = sanitizeDayBlocks(req.body.dayBlocks);
+      const interval = Math.max(
+        5,
+        Math.min(
+          240,
+          parseInt(req.body.interval, 10) || DEFAULT_ADVANCED.interval
+        )
       );
-      const endHour = toHalfStep(
-        clamp(num(req.body.endHour, DEFAULT_SETTINGS.endHour), 0.5, 23.5)
-      );
-      const lunchStart = toHalfStep(
-        clamp(num(req.body.lunchStart, DEFAULT_SETTINGS.lunchStart), 0, 23.5)
-      );
-      const lunchEnd = toHalfStep(
-        clamp(num(req.body.lunchEnd, DEFAULT_SETTINGS.lunchEnd), 0.5, 23.5)
-      );
-      const interval = normalizeInterval(req.body.interval);
-      const maxMonthsAhead = clamp(
-        Math.round(
-          num(req.body.maxMonthsAhead, DEFAULT_SETTINGS.maxMonthsAhead)
-        ),
-        0,
-        24
-      );
-      const workingDays = normalizeWorkingDays(req.body.workingDays);
-      const staffCount = clamp(
-        Math.round(num(req.body.staffCount, DEFAULT_SETTINGS.staffCount)),
+      const maxMonthsAhead = Math.max(
         1,
-        50
+        Math.min(
+          24,
+          parseInt(req.body.maxMonthsAhead, 10) ||
+            DEFAULT_ADVANCED.maxMonthsAhead
+        )
       );
+      const staffCount = Math.max(
+        1,
+        Math.min(
+          50,
+          parseInt(req.body.staffCount, 10) || DEFAULT_ADVANCED.staffCount
+        )
+      );
+      const timezone =
+        typeof req.body.timezone === "string"
+          ? req.body.timezone
+          : DEFAULT_ADVANCED.timezone;
+      const closedDates = Array.isArray(req.body.closedDates)
+        ? req.body.closedDates
+        : [];
 
-      // 3) Validaciones
-      const hoursError = validateHours({
-        startHour,
-        endHour,
-        lunchStart,
-        lunchEnd,
-      });
-      if (hoursError) {
-        return res.status(400).json({ success: false, error: hoursError });
-      }
-
-      // 4) Upsert
       const data = {
         tenantId: req.tenantId,
-        startHour,
-        endHour,
+        dayBlocks,
         interval,
-        lunchStart,
-        lunchEnd,
         maxMonthsAhead,
-        workingDays,
         staffCount,
+        timezone,
+        closedDates,
       };
 
       const updated = await req.AppointmentSettings.findOneAndUpdate(
@@ -176,20 +141,19 @@ export const AppointmentSettingsController = {
         }
       );
 
-      // 5) Log de actividad (no debe romper la respuesta aunque falle)
+      // Log actividad
       try {
         const diff = pickDiff(prevDoc || {}, data, [
-          "startHour",
-          "endHour",
+          "dayBlocks",
           "interval",
-          "lunchStart",
-          "lunchEnd",
           "maxMonthsAhead",
-          "workingDays",
           "staffCount",
+          "timezone",
+          "closedDates",
         ]);
 
         await logActivity(req, {
+          tenantId: req.tenantId,
           category: "Horarios",
           action: prevDoc
             ? "Actualizó ajustes de agenda"
