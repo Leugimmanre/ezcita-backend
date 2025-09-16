@@ -9,7 +9,7 @@ const tokenSchema = new Schema({
   token: { type: String, required: true, index: true, unique: true },
   user: { type: Types.ObjectId, ref: "User", required: true, index: true },
   type: { type: String, enum: ["verify", "password_reset"], required: true },
-  createdAt: { type: Date, default: Date.now, expires: "10m" }, // TTL 10 minutos
+  createdAt: { type: Date, default: Date.now, expires: "600" }, // TTL 10 minutos
 });
 
 const Token = mongoose.models.Token || mongoose.model("Token", tokenSchema);
