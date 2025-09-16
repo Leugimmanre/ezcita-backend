@@ -15,6 +15,7 @@ import userRoutes from "./routes/userRoutes.js";
 import brandSettingsRoutes from "./routes/brandSettingsRoutes.js";
 import path from "path";
 import activityRoutes from "./routes/activityRoutes.js";
+import legalRoutes from "./routes/legalRoutes.js";
 import { startCron } from "./cron/index.js";
 
 // 1. Configuración inicial
@@ -41,6 +42,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/brand", brandSettingsRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api/legal", legalRoutes);
 
 // Iniciar cron jobs
 import { fileURLToPath } from "url";
