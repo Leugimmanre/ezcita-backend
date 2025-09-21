@@ -25,6 +25,7 @@ router.post(
     body("email").isEmail(),
     body("password").isLength({ min: 6 }),
     body("phone").optional(),
+    body("notes").optional().isString(),
     handleInputErrors,
   ],
   UserController.createUser

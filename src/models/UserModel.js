@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
     token: { type: String, default: () => tokenGenarator() },
     verified: { type: Boolean, default: false },
     admin: { type: Boolean, default: false },
+    notes: { type: String, trim: true, default: "" },
     tenantId: { type: String, required: true, select: false, index: true },
   },
   { timestamps: true }
