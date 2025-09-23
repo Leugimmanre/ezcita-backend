@@ -17,6 +17,7 @@ router.post(
     body("name").notEmpty().withMessage("El nombre es obligatorio"),
     body("lastname").notEmpty().withMessage("El apellido es obligatorio"),
     body("email").isEmail().withMessage("Email inválido"),
+    body("phone").optional(),
     body("password").isLength({ min: 6 }).withMessage("Mínimo 6 caracteres"),
   ],
   handleInputErrors,
@@ -68,6 +69,5 @@ router.post(
   handleInputErrors,
   AuthController.resetPassword
 );
-
 
 export default router;

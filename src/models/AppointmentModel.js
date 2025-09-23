@@ -17,6 +17,11 @@ const appointmentSchema = new mongoose.Schema(
       default: "pending",
     },
     notes: { type: String, default: "" },
+    // Recordatorios por email: offsets en minutos (p.ej. 1440 = 24h, 60 = 1h antes)
+    reminders: {
+      emailOffsets: { type: [Number], default: [1440, 60] },
+      sentEmailOffsets: { type: [Number], default: [] },
+    },
     tenantId: { type: String, required: true, index: true },
   },
   { timestamps: true }
