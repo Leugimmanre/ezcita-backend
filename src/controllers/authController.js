@@ -22,6 +22,10 @@ export const AuthController = {
 
       // Normalizar email
       const normalizedEmail = String(email).toLowerCase().trim();
+      const normalizedPhone =
+        typeof phone === "string"
+          ? phone.trim().replace(/\s+/g, " ")
+          : phone ?? "";
 
       // ¿Existe ya?
       const existing = await req.User.findOne({
@@ -39,7 +43,7 @@ export const AuthController = {
         lastname,
         email: normalizedEmail,
         password: hashed,
-        phone,
+        phone: normalizedPhone,
         tenantId,
         verified: false,
       });

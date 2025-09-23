@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema(
     phone: {
       type: String,
       trim: true,
+      default: "",
     },
     token: { type: String, default: () => tokenGenarator() },
     verified: { type: Boolean, default: false },
