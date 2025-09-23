@@ -17,7 +17,7 @@ export const AuthController = {
   // Registro + enviar token de verificación
   async register(req, res, next) {
     try {
-      const { name, lastname, email, password } = req.body;
+      const { name, lastname, email, password, phone } = req.body;
       const tenantId = req.tenantId;
 
       // Normalizar email
@@ -39,6 +39,7 @@ export const AuthController = {
         lastname,
         email: normalizedEmail,
         password: hashed,
+        phone,
         tenantId,
         verified: false,
       });
@@ -62,6 +63,7 @@ export const AuthController = {
           name: user.name,
           lastname: user.lastname,
           email: user.email,
+          phone: user.phone,
           verified: user.verified,
         },
         message:
