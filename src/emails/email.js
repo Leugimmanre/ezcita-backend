@@ -12,6 +12,7 @@ const subjects = {
   deleted: "Tu cita fue eliminada",
   reactivated: "Tu cita fue reactivada",
   completed: "Cita completada",
+  reminder: "Recordatorio: tu cita",
 };
 
 /**
@@ -77,7 +78,7 @@ export const sendAppointmentEmail = async ({
   });
 
   // 4) Adjuntar ICS cuando corresponda
-  const needsICS = ["created", "updated", "cancelled", "deleted"].includes(
+  const needsICS = ["created", "updated", "cancelled", "deleted", "reactivated"].includes(
     type
   );
   const attachments = [];

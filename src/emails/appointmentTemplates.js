@@ -477,6 +477,51 @@ export const appointmentTemplates = {
       "confirmation"
     );
   },
+
+  reminder: ({ name, when, services, total, notes, brand, ctaUrl }) => {
+    const innerContent = `
+      ${headerSection(
+        "Recordatorio de tu cita",
+        "#fffbeb",
+        `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>`
+      )}
+      <div class="greeting">Hola ${name},</div>
+      <div class="message">
+        Te recordamos tu cita en <strong>${brand.name}</strong>.
+      </div>
+
+      ${infoCard(`
+        <div class="appointment-details">
+          <div class="detail-item">
+            <div class="detail-label">Fecha y hora</div>
+            <div class="detail-value">${when}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">Total</div>
+            <div class="detail-value">${currency(total)}</div>
+          </div>
+        </div>
+
+        ${servicesList(services)}
+        ${notesSection(notes)}
+      `)}
+
+      ${ctaUrl ? ctaButton(ctaUrl, "Ver o reprogramar mi cita") : ""}
+
+      <div class="note">
+        <p>Si no puedes asistir, por favor cancela o reprograma desde tu panel.</p>
+      </div>
+    `;
+
+    return baseWrapper(
+      { content: innerContent, brandName: brand.name },
+      "confirmation"
+    );
+  },
 };
 
 /**

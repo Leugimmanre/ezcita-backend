@@ -64,7 +64,6 @@ export async function sendMail({
     subject,
     html,
     attachments,
-    alternatives,
     headers,
     replyTo,
   };
@@ -74,7 +73,7 @@ export async function sendMail({
       filename: a.filename,
       content:
         typeof a.content === "string" ? Buffer.from(a.content) : a.content,
-      content_type: a.contentType || "application/octet-stream",
+      contentType: a.contentType || "application/octet-stream",
     }));
   }
 

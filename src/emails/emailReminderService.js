@@ -77,7 +77,7 @@ export async function runEmailReminders({
       // Enviar correo usando tu pipeline/plantillas existentes
       // Sugerencia: crea un "type: reminder" si quieres asunto/copy específicos.
       await sendAppointmentEmail({
-        type: "updated", // <- cambia a "reminder" si añades esa plantilla/asunto
+        type: "reminder",
         to: user.email,
         user,
         appointment: a,

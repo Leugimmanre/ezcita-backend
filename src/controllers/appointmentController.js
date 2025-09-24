@@ -690,6 +690,7 @@ export class AppointmentController {
       }
 
       appointment.status = "pending";
+      appointment.inviteSeq = (appointment.inviteSeq || 0) + 1;
       await appointment.save();
 
       await logActivity(req, {
@@ -708,7 +709,7 @@ export class AppointmentController {
           to: user.email,
           user,
           appointment,
-          services: [],
+          services: servicesForEmail,
           BrandSettingsModel: req.BrandSettings,
           tenantId: req.tenantId,
         }).catch((e) => console.error("Email error (reactivated):", e));
