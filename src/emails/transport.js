@@ -45,6 +45,8 @@ export async function sendMail({
   subject,
   html,
   attachments = [],
+  alternatives = [],
+  headers = {},
   replyTo,
 }) {
   // Normalizar direcciones
@@ -61,6 +63,10 @@ export async function sendMail({
     to: toList,
     subject,
     html,
+    attachments,
+    alternatives,
+    headers,
+    replyTo,
   };
 
   if (attachments?.length) {

@@ -507,6 +507,9 @@ export class AppointmentController {
         updateData.totalPrice = totalPrice;
       }
 
+      // Incrementa la SEQUENCE de la invitación para que Calendar detecte el cambio
+      updateData.inviteSeq = (appointment.inviteSeq || 0) + 1;
+
       const updatedAppointment = await req.Appointments.findByIdAndUpdate(
         id,
         updateData,
@@ -609,6 +612,8 @@ export class AppointmentController {
       }
 
       appointment.status = "cancelled";
+      // Sube la secuencia para que el CANCEL sustituya el evento existente
+      appointment.inviteSeq = (appointment.inviteSeq || 0) + 1;
       await appointment.save();
 
       await logActivity(req, {

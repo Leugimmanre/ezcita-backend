@@ -112,9 +112,15 @@ export const buildICS = ({
   start,
   end,
   summary,
-  description,
-  location,
-  method = "REQUEST",
+  description = "",
+  location = "",
+  method = "REQUEST", // REQUEST | CANCEL
+  organizerEmail = "no-reply@local",
+  organizerName = "",
+  attendeeEmail = "",
+  attendeeName = "Invitado",
+  sequence = 0,
+  url = "",
 }) => {
   const dtStart = toICSDateUTC(start);
   const dtEnd = toICSDateUTC(end);
@@ -124,6 +130,7 @@ export const buildICS = ({
     "BEGIN:VCALENDAR",
     "PRODID:-//ezcita//Appointments//ES",
     "VERSION:2.0",
+    "CALSCALE:GREGORIAN",
     `METHOD:${method}`,
     "BEGIN:VEVENT",
     `UID:${icsEscape(uid)}`,
@@ -131,8 +138,21 @@ export const buildICS = ({
     `DTSTART:${dtStart}`,
     `DTEND:${dtEnd}`,
     `SUMMARY:${icsEscape(summary)}`,
-    `DESCRIPTION:${icsEscape(description)}`,
+    description ? `DESCRIPTION:${icsEscape(description)}` : "",
     location ? `LOCATION:${icsEscape(location)}` : "",
+    url ? `URL:${icsEscape(url)}` : "",
+    `SEQUENCE:${Number.isInteger(sequence) ? sequence : 0}`,
+    organizerEmail
+      ? `ORGANIZER${
+          organizerName ? `;CN=${icsEscape(organizerName)}` : ""
+        }:MAILTO:${organizerEmail}`
+      : "",
+    attendeeEmail
+      ? `ATTENDEE;CN=${icsEscape(
+          attendeeName || "Invitado"
+        )};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:${attendeeEmail}`
+      : "",
+    method === "CANCEL" ? "STATUS:CANCELLED" : "STATUS:CONFIRMED",
     "END:VEVENT",
     "END:VCALENDAR",
   ].filter(Boolean);

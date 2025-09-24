@@ -22,6 +22,9 @@ const appointmentSchema = new mongoose.Schema(
       emailOffsets: { type: [Number], default: [1440, 60] },
       sentEmailOffsets: { type: [Number], default: [] },
     },
+    // Secuencia de invitación ICS para que Calendar haga update/cancel
+    inviteSeq: { type: Number, default: 0 },
+
     tenantId: { type: String, required: true, index: true },
   },
   { timestamps: true }
