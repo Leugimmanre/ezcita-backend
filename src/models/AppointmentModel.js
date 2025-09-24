@@ -19,7 +19,7 @@ const appointmentSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     // Recordatorios por email: offsets en minutos (p.ej. 1440 = 24h, 60 = 1h antes)
     reminders: {
-      emailOffsets: { type: [Number], default: [25, 20] },
+      emailOffsets: { type: [Number], default: [5, 2] },
       sentEmailOffsets: { type: [Number], default: [] },
     },
     // Secuencia de invitación ICS para que Calendar haga update/cancel

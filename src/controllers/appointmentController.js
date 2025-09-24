@@ -669,26 +669,30 @@ export class AppointmentController {
   }
 
   // Reactivar
+  // Reactivar
   static async reactivateAppointment(req, res) {
     try {
       const { id } = req.params;
       const userId = req.user.id;
       const isAdminUser = req.user.role === "admin";
 
-      const appointment = await req.Appointments.findById(id).populate(
-        "user",
-        "name email lastname"
-      );
-      if (!appointment)
+      const appointment = await req.Appointments.findById(id)
+        .populate("services", "name price duration durationUnit")
+        .populate("user", "name email lastname");
+
+      if (!appointment) {
         return res.status(404).json({ error: "Cita no encontrada" });
-      if (!isAdminUser && appointment.user._id.toString() !== userId)
+      }
+      if (!isAdminUser && appointment.user._id.toString() !== userId) {
         return res.status(403).json({ error: "No autorizado" });
+      }
       if (appointment.status !== "cancelled") {
         return res
           .status(400)
           .json({ error: "Solo se pueden reactivar citas canceladas" });
       }
 
+      // Subir secuencia y cambiar estado
       appointment.status = "pending";
       appointment.inviteSeq = (appointment.inviteSeq || 0) + 1;
       await appointment.save();
@@ -702,8 +706,15 @@ export class AppointmentController {
       });
 
       const user = await buildEmailUser(req, appointment, appointment.user);
+      // Definir servicesForEmail
+      const servicesForEmail = (appointment.services || []).map((s) => ({
+        name: s.name,
+        price: s.price,
+        duration: s.duration,
+      }));
 
       if (user?.email) {
+        // Esto enviará ICS METHOD:REQUEST con el mismo UID y SEQUENCE mayor
         sendAppointmentEmail({
           type: "reactivated",
           to: user.email,
@@ -717,6 +728,7 @@ export class AppointmentController {
 
       res.json({ message: "Cita reactivada exitosamente", appointment });
     } catch (error) {
+      console.error("reactivateAppointment error:", error);
       res.status(500).json({ error: error.message });
     }
   }
