@@ -1,26 +1,19 @@
-// src/controllers/cronController.js
 import { buildEmailUser } from "../emails/emailUser.js";
 import { sendAppointmentEmail } from "../emails/email.js";
 import { runEmailReminders } from "../emails/emailReminderService.js";
 
-const parseBool = (v) =>
-  ["true", "1", "yes", "y", true].includes(
-    String(v === undefined ? "" : v).toLowerCase()
-  );
+const asBool = (v) => v === true || v === "true" || v === "1";
+const asNum = (v, d) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
+const parseOffsets = (s) =>
+  String(s || "")
+    .split(",")
+    .map((x) => Number(x.trim()))
+    .filter((x) => Number.isFinite(x) && x >= 0);
 
 export class CronController {
-  /**
-   * POST /api/cron/email-reminders
-   * Headers:
-   *  - X-CRON-TOKEN: <CRON_SECRET>
-   *  - X-Tenant-ID: <tenantId>
-   * Query/body opcional:
-   *  - sendNow=true            => ignora la ventana y manda YA (si no enviados)
-   *  - appointmentId=<id>      => limita a una cita concreta
-   *  - tolerance=<min>         => tolerancia en minutos (default 2)
-   *  - now=<ISO|epoch>         => “ahora” simulado para pruebas
-   *  - windowHours=<h>         => ventana hacia delante (default 26h)
-   */
   static async emailReminders(req, res) {
     try {
       const token = req.get("x-cron-token");
@@ -28,49 +21,46 @@ export class CronController {
         return res.status(401).json({ ok: false, error: "unauthorized" });
       }
 
-      const tenantId = req.tenantId; // lo pone tenantMiddleware
-      if (!tenantId) {
+      const tenantId = req.tenantId;
+      if (!tenantId)
         return res.status(400).json({ ok: false, error: "tenant required" });
-      }
 
-      // ---- parámetros de prueba/forzado ----
-      const q = { ...req.query, ...req.body };
-      const sendNow = parseBool(q.sendNow);
-      const appointmentId = q.appointmentId ? String(q.appointmentId) : null;
-      const toleranceMin =
-        Number.isFinite(Number(q.tolerance)) ? Number(q.tolerance) : 2;
-      const windowHours =
-        Number.isFinite(Number(q.windowHours)) ? Number(q.windowHours) : 26;
+      const {
+        Appointments,
+        Services,
+        BrandSettings,
+        AppointmentSettings,
+        User,
+      } = req;
 
-      let nowOverride = undefined;
-      if (q.now) {
-        const n = new Date(q.now);
-        if (!isNaN(n.getTime())) nowOverride = n;
-      }
+      // 👇 Envoltorio que inyecta el modelo User correcto
+      const buildEmailUserCron = (_ignored, appointment, fallbackUserId) =>
+        buildEmailUser(
+          { User: req.User, tenantId: req.tenantId }, // <-- aquí sí hay User
+          appointment,
+          fallbackUserId
+        );
 
-      // Modelos ya inyectados por tenantMiddleware
-      const { Appointments, Services, BrandSettings, AppointmentSettings } = req;
-      if (!Appointments || !Services) {
-        return res
-          .status(500)
-          .json({ ok: false, error: "models not resolved" });
-      }
+      const options = {
+        // parámetros opcionales por query para pruebas/manual trigger
+        forceNow: asBool(req.query.sendNow),
+        appointmentId: req.query.appointmentId || req.query.id || null,
+        toleranceMin: asNum(req.query.tolerance, 1),
+        now: req.query.now || null,
+        defaultOffsets: req.query.defaultOffsets
+          ? parseOffsets(req.query.defaultOffsets)
+          : undefined,
+      };
 
       const result = await runEmailReminders({
         Appointments,
         Services,
         BrandSettings,
         AppointmentSettings,
-        buildEmailUser,
+        buildEmailUser: buildEmailUserCron, // 👈 usamos el wrapper
         sendAppointmentEmail,
         tenantId,
-
-        // opciones nuevas:
-        sendNow,
-        appointmentId,
-        toleranceMin,
-        windowHours,
-        now: nowOverride,
+        options,
       });
 
       return res.json({ ok: true, ...result });
