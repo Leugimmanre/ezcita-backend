@@ -2,67 +2,61 @@ import { buildEmailUser } from "../emails/emailUser.js";
 import { sendAppointmentEmail } from "../emails/email.js";
 import { runEmailReminders } from "../emails/emailReminderService.js";
 
-const asBool = (v) => v === true || v === "true" || v === "1";
-const asNum = (v, d) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : d;
-};
-const parseOffsets = (s) =>
-  String(s || "")
-    .split(",")
-    .map((x) => Number(x.trim()))
-    .filter((x) => Number.isFinite(x) && x >= 0);
-
+/**
+ * Controlador para jobs internos (cron / invocaciones manuales)
+ *
+ * Requiere:
+ *  - Header: X-CRON-TOKEN == process.env.CRON_SECRET
+ *  - tenantMiddleware montado (para tener req.tenantId y modelos por tenant)
+ *  - X-Tenant-ID en headers o ?tenant= en la URL (lo resuelve el tenantMiddleware)
+ *
+ * Query params soportados:
+ *  - sendNow=true|false
+ *  - appointmentId=<id>
+ *  - tolerance=<minutos>
+ *  - defaultOffsets=1440,60   (coma separada)
+ *  - now=2025-01-01T12:00:00Z (opcional, para pruebas)
+ */
 export class CronController {
-  /**
-   * POST /api/cron/email-reminders
-   * Headers:
-   *   - X-CRON-TOKEN: <CRON_SECRET>
-   *   - X-Tenant-ID: <tenantId>
-   * Query opcional para pruebas:
-   *   - sendNow=true
-   *   - appointmentId=<id>
-   *   - tolerance=5        (minutos)
-   *   - defaultOffsets=25,20
-   *   - now=2025-09-25T20:10:00Z (para simular "ahora")
-   */
   static async emailReminders(req, res) {
     try {
-      const token = req.get("x-cron-token");
+      const token = req.get("x-cron-token") || req.get("X-CRON-TOKEN");
       if (token !== process.env.CRON_SECRET) {
         return res.status(401).json({ ok: false, error: "unauthorized" });
       }
 
-      const tenantId = req.tenantId; // lo pone tenantMiddleware
+      const tenantId = req.tenantId; // puesto por tenantMiddleware
       if (!tenantId) {
         return res.status(400).json({ ok: false, error: "tenant required" });
       }
 
       // Modelos ya inyectados por tenantMiddleware
-      const {
-        Appointments,
-        Services,
-        BrandSettings,
-        AppointmentSettings,
-        User,
-      } = req;
+      const { Appointments, Services, BrandSettings, AppointmentSettings, User } = req;
+      if (!Appointments || !Services) {
+        return res.status(500).json({ ok: false, error: "models not resolved" });
+      }
 
-      // Wrapper para que buildEmailUser tenga req.User (el fallo original)
-      const buildEmailUserCron = (_ignored, appointment, fallbackUserId) =>
-        buildEmailUser(
-          { User: req.User, tenantId: req.tenantId },
-          appointment,
-          fallbackUserId
-        );
+      // Parseo de query
+      const sendNow = String(req.query.sendNow || "false").toLowerCase() === "true";
+      const appointmentId = (req.query.appointmentId || "").trim() || null;
+      const tolerance = Number(req.query.tolerance || req.query.toleranceMin || 1);
+      const nowParam = (req.query.now || "").trim() || null;
+
+      let defaultOffsets = [1440, 60];
+      if (req.query.defaultOffsets) {
+        defaultOffsets = String(req.query.defaultOffsets)
+          .split(",")
+          .map((s) => Number(s.trim()))
+          .filter((n) => Number.isFinite(n) && n >= 0);
+        if (!defaultOffsets.length) defaultOffsets = [1440, 60];
+      }
 
       const options = {
-        sendNow: asBool(req.query.sendNow),
-        appointmentId: req.query.appointmentId || req.query.id || null,
-        toleranceMin: asNum(req.query.tolerance, 1),
-        now: req.query.now || null,
-        defaultOffsets: req.query.defaultOffsets
-          ? parseOffsets(req.query.defaultOffsets)
-          : undefined,
+        sendNow,
+        appointmentId,
+        toleranceMin: Number.isFinite(tolerance) && tolerance > 0 ? tolerance : 1,
+        defaultOffsets,
+        now: nowParam || null,
       };
 
       const result = await runEmailReminders({
@@ -70,7 +64,7 @@ export class CronController {
         Services,
         BrandSettings,
         AppointmentSettings,
-        buildEmailUser: buildEmailUserCron, // <— usamos el wrapper
+        buildEmailUser,
         sendAppointmentEmail,
         tenantId,
         User,

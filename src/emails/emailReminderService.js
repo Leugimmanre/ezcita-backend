@@ -1,100 +1,79 @@
-// Revisa citas próximas y envía recordatorios según offsets no enviados.
-// Trabaja 100% en UTC.
-
+// src/emails/emailReminderService.js
 import { addMinutes, subMinutes, isWithinInterval } from "date-fns";
 
 /**
- * Ejecuta el envío de recordatorios de email para un tenant.
- *
- * @param {Object} deps
- * @param {mongoose.Model} deps.Appointments
- * @param {mongoose.Model} deps.Services
- * @param {mongoose.Model} [deps.BrandSettings]
- * @param {mongoose.Model} [deps.AppointmentSettings]
- * @param {mongoose.Model} [deps.User]                       // <-- nuevo
- * @param {Function} deps.buildEmailUser
- * @param {Function} deps.sendAppointmentEmail
- * @param {String} deps.tenantId
- * @param {Object} [deps.options]
- * @param {Boolean} [deps.options.sendNow=false]             // <-- nuevo
- * @param {String}  [deps.options.appointmentId=null]        // <-- nuevo
- * @param {Number}  [deps.options.toleranceMin=1]            // <-- nuevo
- * @param {String}  [deps.options.now=null]                  // ISO, para simular "ahora"
- * @param {Number[]} [deps.options.defaultOffsets=[1440,60]] // <-- nuevo
- *
- * @returns {Promise<{sent:number, checked:number}>}
+ * Envía recordatorios por email.
+ * options:
+ *  - sendNow: boolean (ignora ventana temporal)
+ *  - appointmentId: string|null (limita a una cita)
+ *  - toleranceMin: number (± minutos alrededor del target) default 1
+ *  - defaultOffsets: number[] (si la cita no trae offsets)
+ *  - overrideOffsets: number[]|null (si quieres ignorar lo que trae la cita)
+ *  - now: string|Date|null (para pruebas)
  */
 export async function runEmailReminders({
   Appointments,
   Services,
   BrandSettings,
   AppointmentSettings,
-  User, // no lo usamos directamente aquí, pero puede usarse si prefieres no pasar buildEmailUser
   buildEmailUser,
   sendAppointmentEmail,
   tenantId,
+  User,
   options = {},
 }) {
   const {
     sendNow = false,
     appointmentId = null,
     toleranceMin = 1,
-    now = null,
     defaultOffsets = [1440, 60],
+    overrideOffsets = null,
+    now: nowOverride = null,
   } = options;
 
-  // "Ahora" en UTC (o el simulado)
-  const nowUtc = now ? new Date(now) : new Date();
+  const nowUtc = nowOverride ? new Date(nowOverride) : new Date();
+  const endWindowUtc = addMinutes(nowUtc, 60 * 26);
 
-  // Query base
-  const q = {
+  const baseFilter = {
     tenantId,
     status: { $in: ["pending", "confirmed"] },
   };
 
-  // Si pruebas 1 cita concreta, no limitamos por ventana de 26h
-  if (appointmentId) {
-    q._id = appointmentId;
-  } else {
-    // Ventana: próximas 26h para cubrir offset de 24h
-    const endWindowUtc = addMinutes(nowUtc, 60 * 26);
-    q.date = { $gte: nowUtc, $lte: endWindowUtc };
-  }
+  const finalFilter = {
+    ...baseFilter,
+    ...(appointmentId
+      ? { _id: appointmentId }
+      : { date: { $gte: nowUtc, $lte: endWindowUtc } }),
+  };
 
-  const appts = await Appointments.find(q)
+  const appts = await Appointments.find(finalFilter)
     .select("user services date duration reminders status")
     .lean();
 
   let sentCount = 0;
-  let checked = appts.length;
+  const details = [];
 
   for (const a of appts) {
-    // Offsets en minutos: usa los de la cita o los por defecto (importante para docs antiguos)
+    // 1) Offsets finales
     const rawOffsets =
-      Array.isArray(a.reminders?.emailOffsets) &&
-      a.reminders.emailOffsets.length
+      overrideOffsets && overrideOffsets.length
+        ? overrideOffsets
+        : Array.isArray(a.reminders?.emailOffsets) &&
+          a.reminders.emailOffsets.length
         ? a.reminders.emailOffsets
         : defaultOffsets;
 
-    // normaliza a enteros únicos >=0
     const emailOffsets = [
       ...new Set(
-        rawOffsets
-          .map((n) => Number(n))
-          .filter((n) => Number.isFinite(n) && n >= 0)
+        rawOffsets.map(Number).filter((n) => Number.isFinite(n) && n >= 0)
       ),
     ];
-
     const already = new Set(a.reminders?.sentEmailOffsets || []);
-
-    // Solo los que no hayan sido enviados
     const dueOffsets = emailOffsets.filter((off) => !already.has(off));
 
     for (const off of dueOffsets) {
-      // Momento objetivo = fecha cita - offset (UTC)
       const targetUtc = subMinutes(new Date(a.date), off);
 
-      // Due: si sendNow => true, si no, ventana de tolerancia ±toleranceMin
       const due = sendNow
         ? true
         : isWithinInterval(targetUtc, {
@@ -104,42 +83,83 @@ export async function runEmailReminders({
 
       if (!due) continue;
 
-      // Usuario (vía wrapper que le pasa {User, tenantId})
-      const user = await buildEmailUser({ User, tenantId }, a, a.user);
+      // 2) Resolver destinatario
+      const reqLike = { User, tenantId, user: null };
+      const user = await buildEmailUser(reqLike, a, a.user);
       if (!user?.email) {
-        // No email => saltar este offset
+        details.push({
+          appointmentId: String(a._id),
+          off,
+          to: null,
+          accepted: 0,
+          messageId: null,
+          response: "no-user-email",
+          reason: "no-user-email",
+        });
         continue;
       }
 
+      // 3) Servicios
       const svcs = await Services.find({ _id: { $in: a.services } })
         .select("name price duration durationUnit")
         .lean();
 
-      await sendAppointmentEmail({
-        type: "reminder",
+      // 4) Enviar
+      let info = null;
+      try {
+        info = await sendAppointmentEmail({
+          type: "reminder",
+          to: user.email,
+          user,
+          appointment: a,
+          services: svcs.map((s) => ({
+            name: s.name,
+            price: s.price,
+            duration: s.duration,
+          })),
+          BrandSettingsModel: BrandSettings,
+          tenantId,
+        });
+      } catch (err) {
+        details.push({
+          appointmentId: String(a._id),
+          off,
+          to: user.email,
+          accepted: 0,
+          messageId: null,
+          response: err?.message || "send-error",
+          reason: "send-error",
+        });
+        continue;
+      }
+
+      const acceptedCount = Array.isArray(info?.accepted)
+        ? info.accepted.length
+        : 0;
+
+      details.push({
+        appointmentId: String(a._id),
+        off,
         to: user.email,
-        user,
-        appointment: a,
-        services: svcs.map((s) => ({
-          name: s.name,
-          price: s.price,
-          duration: s.duration,
-        })),
-        BrandSettingsModel: BrandSettings,
-        tenantId,
+        accepted: acceptedCount,
+        messageId: info?.messageId || null,
+        response: info?.response || null,
+        ...(acceptedCount === 0
+          ? { reason: "smtp-not-accepted-or-no-info" }
+          : {}),
       });
 
-      // Marcar offset como enviado (idempotente)
-      await Appointments.updateOne(
-        { _id: a._id },
-        { $addToSet: { "reminders.sentEmailOffsets": off } }
-      );
-
-      sentCount++;
+      if (acceptedCount > 0) {
+        await Appointments.updateOne(
+          { _id: a._id },
+          { $addToSet: { "reminders.sentEmailOffsets": off } }
+        );
+        sentCount++;
+      }
     }
   }
 
-  return { sent: sentCount, checked };
+  return { sent: sentCount, checked: appts.length, details };
 }
 
 export default runEmailReminders;
