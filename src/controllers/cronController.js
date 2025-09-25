@@ -33,7 +33,7 @@ export class CronController {
         User,
       } = req;
 
-      // 👇 Envoltorio que inyecta el modelo User correcto
+      // Envoltorio que inyecta el modelo User correcto
       const buildEmailUserCron = (_ignored, appointment, fallbackUserId) =>
         buildEmailUser(
           { User: req.User, tenantId: req.tenantId }, // <-- aquí sí hay User
@@ -57,7 +57,7 @@ export class CronController {
         Services,
         BrandSettings,
         AppointmentSettings,
-        buildEmailUser: buildEmailUserCron, // 👈 usamos el wrapper
+        buildEmailUser: buildEmailUserCron,
         sendAppointmentEmail,
         tenantId,
         options,
