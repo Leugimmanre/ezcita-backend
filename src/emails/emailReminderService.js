@@ -1,6 +1,5 @@
-// src/emails/emailReminderService.js
 // Revisa citas próximas y envía recordatorios según offsets no enviados.
-// Trabaja 100% en UTC (sin date-fns-tz).
+// Trabaja 100% en UTC.
 
 import { addMinutes, subMinutes, isWithinInterval } from "date-fns";
 
@@ -12,98 +11,110 @@ import { addMinutes, subMinutes, isWithinInterval } from "date-fns";
  * @param {mongoose.Model} deps.Services
  * @param {mongoose.Model} [deps.BrandSettings]
  * @param {mongoose.Model} [deps.AppointmentSettings]
+ * @param {mongoose.Model} [deps.User]                       // <-- nuevo
  * @param {Function} deps.buildEmailUser
  * @param {Function} deps.sendAppointmentEmail
  * @param {String} deps.tenantId
- * @param {Boolean} [deps.sendNow=false]          // manda YA (si no enviados)
- * @param {String}  [deps.appointmentId=null]     // limita a una cita
- * @param {Number}  [deps.toleranceMin=2]         // tolerancia en minutos
- * @param {Number}  [deps.windowHours=26]         // ventana hacia delante
- * @param {Date}    [deps.now]                    // ahora override (tests)
+ * @param {Object} [deps.options]
+ * @param {Boolean} [deps.options.sendNow=false]             // <-- nuevo
+ * @param {String}  [deps.options.appointmentId=null]        // <-- nuevo
+ * @param {Number}  [deps.options.toleranceMin=1]            // <-- nuevo
+ * @param {String}  [deps.options.now=null]                  // ISO, para simular "ahora"
+ * @param {Number[]} [deps.options.defaultOffsets=[1440,60]] // <-- nuevo
  *
- * @returns {Promise<{sent:number}>}
+ * @returns {Promise<{sent:number, checked:number}>}
  */
 export async function runEmailReminders({
   Appointments,
   Services,
   BrandSettings,
   AppointmentSettings,
+  User, // no lo usamos directamente aquí, pero puede usarse si prefieres no pasar buildEmailUser
   buildEmailUser,
   sendAppointmentEmail,
   tenantId,
-
-  // nuevos parámetros
-  sendNow = false,
-  appointmentId = null,
-  toleranceMin = 2,
-  windowHours = 26,
-  now,
+  options = {},
 }) {
-  const nowUtc = now instanceof Date && !isNaN(now) ? now : new Date();
-  const endWindowUtc = addMinutes(nowUtc, 60 * windowHours);
+  const {
+    sendNow = false,
+    appointmentId = null,
+    toleranceMin = 1,
+    now = null,
+    defaultOffsets = [1440, 60],
+  } = options;
+
+  // "Ahora" en UTC (o el simulado)
+  const nowUtc = now ? new Date(now) : new Date();
 
   // Query base
-  const baseFilter = {
+  const q = {
     tenantId,
     status: { $in: ["pending", "confirmed"] },
   };
 
-  let appts = [];
+  // Si pruebas 1 cita concreta, no limitamos por ventana de 26h
   if (appointmentId) {
-    // Traer SOLO esa cita (ignora ventana, pero respeta estado)
-    appts = await Appointments.find({ ...baseFilter, _id: appointmentId })
-      .select("user services date duration reminders status")
-      .lean();
+    q._id = appointmentId;
   } else {
-    // Ventana normal
-    appts = await Appointments.find({
-      ...baseFilter,
-      date: { $gte: nowUtc, $lte: endWindowUtc },
-    })
-      .select("user services date duration reminders status")
-      .lean();
+    // Ventana: próximas 26h para cubrir offset de 24h
+    const endWindowUtc = addMinutes(nowUtc, 60 * 26);
+    q.date = { $gte: nowUtc, $lte: endWindowUtc };
   }
 
+  const appts = await Appointments.find(q)
+    .select("user services date duration reminders status")
+    .lean();
+
   let sentCount = 0;
+  let checked = appts.length;
 
   for (const a of appts) {
-    const emailOffsets = Array.isArray(a.reminders?.emailOffsets)
-      ? a.reminders.emailOffsets
-      : [1440, 60];
+    // Offsets en minutos: usa los de la cita o los por defecto (importante para docs antiguos)
+    const rawOffsets =
+      Array.isArray(a.reminders?.emailOffsets) &&
+      a.reminders.emailOffsets.length
+        ? a.reminders.emailOffsets
+        : defaultOffsets;
+
+    // normaliza a enteros únicos >=0
+    const emailOffsets = [
+      ...new Set(
+        rawOffsets
+          .map((n) => Number(n))
+          .filter((n) => Number.isFinite(n) && n >= 0)
+      ),
+    ];
 
     const already = new Set(a.reminders?.sentEmailOffsets || []);
 
-    // Consideramos solo offsets no enviados
-    const candidateOffsets = emailOffsets.filter((off) => !already.has(off));
+    // Solo los que no hayan sido enviados
+    const dueOffsets = emailOffsets.filter((off) => !already.has(off));
 
-    for (const off of candidateOffsets) {
+    for (const off of dueOffsets) {
+      // Momento objetivo = fecha cita - offset (UTC)
       const targetUtc = subMinutes(new Date(a.date), off);
 
-      // ¿Está “debido”?
-      let due = false;
-      if (sendNow) {
-        // Forzado: si la cita es futura (o muy próxima), disparamos sin mirar tolerancia
-        due = new Date(a.date).getTime() >= nowUtc.getTime();
-      } else {
-        // Normal: ventana de tolerancia configurable
-        due = isWithinInterval(targetUtc, {
-          start: subMinutes(nowUtc, toleranceMin),
-          end: addMinutes(nowUtc, toleranceMin),
-        });
-      }
+      // Due: si sendNow => true, si no, ventana de tolerancia ±toleranceMin
+      const due = sendNow
+        ? true
+        : isWithinInterval(targetUtc, {
+            start: subMinutes(nowUtc, toleranceMin),
+            end: addMinutes(nowUtc, toleranceMin),
+          });
 
       if (!due) continue;
 
-      // Usuario
-      const user = await buildEmailUser({ tenantId }, a, a.user);
-      if (!user?.email) continue;
+      // Usuario (vía wrapper que le pasa {User, tenantId})
+      const user = await buildEmailUser({ User, tenantId }, a, a.user);
+      if (!user?.email) {
+        // No email => saltar este offset
+        continue;
+      }
 
-      // Servicios
       const svcs = await Services.find({ _id: { $in: a.services } })
         .select("name price duration durationUnit")
         .lean();
 
-      // Enviar
       await sendAppointmentEmail({
         type: "reminder",
         to: user.email,
@@ -118,7 +129,7 @@ export async function runEmailReminders({
         tenantId,
       });
 
-      // Marcar offset como enviado (idempotencia)
+      // Marcar offset como enviado (idempotente)
       await Appointments.updateOne(
         { _id: a._id },
         { $addToSet: { "reminders.sentEmailOffsets": off } }
@@ -128,7 +139,7 @@ export async function runEmailReminders({
     }
   }
 
-  return { sent: sentCount };
+  return { sent: sentCount, checked };
 }
 
 export default runEmailReminders;
