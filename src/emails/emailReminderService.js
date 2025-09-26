@@ -133,23 +133,27 @@ export async function runEmailReminders({
         continue;
       }
 
+      // Criterio de éxito para Resend (id) o messageId/response
       const acceptedCount = Array.isArray(info?.accepted)
         ? info.accepted.length
         : 0;
+      const success =
+        acceptedCount > 0 ||
+        Boolean(info?.id) || // ← Resend
+        Boolean(info?.messageId) ||
+        Boolean(info?.response);
 
       details.push({
         appointmentId: String(a._id),
         off,
         to: user.email,
         accepted: acceptedCount,
-        messageId: info?.messageId || null,
+        messageId: info?.messageId || info?.id || null,
         response: info?.response || null,
-        ...(acceptedCount === 0
-          ? { reason: "smtp-not-accepted-or-no-info" }
-          : {}),
+        ...(success ? {} : { reason: "not-confirmed" }),
       });
 
-      if (acceptedCount > 0) {
+      if (success) {
         await Appointments.updateOne(
           { _id: a._id },
           { $addToSet: { "reminders.sentEmailOffsets": off } }
