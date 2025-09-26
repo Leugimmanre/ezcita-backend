@@ -137,17 +137,20 @@ export async function runEmailReminders({
       const acceptedCount = Array.isArray(info?.accepted)
         ? info.accepted.length
         : 0;
+
+      // Resend devolvió id, o hay messageId/response, o (legacy) accepted>0
       const success =
-        acceptedCount > 0 ||
         Boolean(info?.id) || // ← Resend
         Boolean(info?.messageId) ||
-        Boolean(info?.response);
+        Boolean(info?.response) ||
+        acceptedCount > 0;
 
       details.push({
         appointmentId: String(a._id),
         off,
         to: user.email,
         accepted: acceptedCount,
+        // guarda algo trazable; en Resend es .id:
         messageId: info?.messageId || info?.id || null,
         response: info?.response || null,
         ...(success ? {} : { reason: "not-confirmed" }),
