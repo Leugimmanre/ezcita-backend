@@ -49,8 +49,8 @@ export function startCron() {
           tenantId: process.env.TENANT_ID || "default",
           User,
           options: {
-            toleranceMin: Number(process.env.REMINDER_TOLERANCE || 3),
-            defaultOffsets: (process.env.REMINDER_OFFSETS || "5,2")
+            toleranceMin: Number(process.env.REMINDER_TOLERANCE || 5),
+            defaultOffsets: (process.env.REMINDER_OFFSETS || "1440,60")
               .split(",")
               .map((x) => Number(x.trim()))
               .filter((n) => Number.isFinite(n) && n > 0),
