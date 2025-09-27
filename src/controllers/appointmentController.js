@@ -247,6 +247,11 @@ export class AppointmentController {
         notes,
         status: "pending",
         tenantId: req.tenantId,
+        // Alarmas 24h (1440) y 1h (60)
+        reminders: {
+          emailOffsets: [1440, 60],
+          sentEmailOffsets: [],
+        },
       });
 
       await appointment.save();
@@ -342,6 +347,11 @@ export class AppointmentController {
         )
           ? status
           : "confirmed",
+        // Alarmas 24h (1440) y 1h (60)
+        reminders: {
+          emailOffsets: [1440, 60],
+          sentEmailOffsets: [],
+        },
         tenantId: req.tenantId,
       });
 

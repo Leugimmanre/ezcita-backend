@@ -78,9 +78,13 @@ export const sendAppointmentEmail = async ({
   });
 
   // 4) Adjuntar ICS cuando corresponda
-  const needsICS = ["created", "updated", "cancelled", "deleted", "reactivated"].includes(
-    type
-  );
+  const needsICS = [
+    "created",
+    "updated",
+    "cancelled",
+    "deleted",
+    "reactivated",
+  ].includes(type);
   const attachments = [];
   const alternatives = [];
   let headers = {};
@@ -96,13 +100,19 @@ export const sendAppointmentEmail = async ({
     const summary = `Cita - ${brand.name || "Mi Negocio"}`;
     const description = (appointment?.notes || "").slice(0, 200);
 
-    // Usa inviteSeq si existe; si no, 0 para "created" y 1 para otras
     const sequence =
       typeof appointment?.inviteSeq === "number"
         ? appointment.inviteSeq
         : type === "created"
         ? 0
         : 1;
+
+    // Usar los offsets de la cita como alarmas del calendario
+    const alarmsMinutes =
+      Array.isArray(appointment?.reminders?.emailOffsets) &&
+      appointment.reminders.emailOffsets.length
+        ? appointment.reminders.emailOffsets
+        : [1440, 60]; // fallback opcional
 
     const ics = buildICS({
       uid: `${appointment._id}@${brand.domain || "local"}`,
@@ -119,10 +129,10 @@ export const sendAppointmentEmail = async ({
       url: brand.frontendUrl
         ? `${brand.frontendUrl}/appointments/my-appointments`
         : "",
+      alarmsMinutes,
     });
 
     const contentType = `text/calendar; method=${method}; charset=UTF-8`;
-
     attachments.push({
       filename: "cita.ics",
       content: Buffer.from(ics, "utf8"),
@@ -136,7 +146,16 @@ export const sendAppointmentEmail = async ({
   const replyTo = brand.contactEmail || from.match(/<(.+)>/)?.[1] || from;
 
   // 6) Enviar
-  return sendMail({ from, to, subject, html, attachments, alternatives, headers, replyTo });
+  return sendMail({
+    from,
+    to,
+    subject,
+    html,
+    attachments,
+    alternatives,
+    headers,
+    replyTo,
+  });
 };
 
 export default sendAppointmentEmail;

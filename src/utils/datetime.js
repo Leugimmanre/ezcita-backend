@@ -107,56 +107,71 @@ const foldICSLines = (lines) => {
 // start/end: Date (o parseable) en UTC
 // summary/description/location: strings visibles
 // method: "REQUEST" | "CANCEL" (otros métodos posibles: "PUBLISH", etc.)
-export const buildICS = ({
+export function buildICS({
   uid,
   start,
   end,
   summary,
   description = "",
-  location = "",
-  method = "REQUEST", // REQUEST | CANCEL
-  organizerEmail = "no-reply@local",
+  method = "REQUEST",
+  organizerEmail,
   organizerName = "",
-  attendeeEmail = "",
+  attendeeEmail,
   attendeeName = "Invitado",
   sequence = 0,
   url = "",
-}) => {
-  const dtStart = toICSDateUTC(start);
-  const dtEnd = toICSDateUTC(end);
-  const dtStamp = toICSDateUTC(new Date());
+  alarmsMinutes = [1440, 60], // p.ej. [60,15,5]
+}) {
+  const dt = (d) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 
   const lines = [
     "BEGIN:VCALENDAR",
-    "PRODID:-//ezcita//Appointments//ES",
+    "PRODID:-//YourApp//ES",
     "VERSION:2.0",
-    "CALSCALE:GREGORIAN",
+    `CALSCALE:GREGORIAN`,
     `METHOD:${method}`,
     "BEGIN:VEVENT",
-    `UID:${icsEscape(uid)}`,
-    `DTSTAMP:${dtStamp}`,
-    `DTSTART:${dtStart}`,
-    `DTEND:${dtEnd}`,
-    `SUMMARY:${icsEscape(summary)}`,
-    description ? `DESCRIPTION:${icsEscape(description)}` : "",
-    location ? `LOCATION:${icsEscape(location)}` : "",
-    url ? `URL:${icsEscape(url)}` : "",
-    `SEQUENCE:${Number.isInteger(sequence) ? sequence : 0}`,
+    `UID:${uid}`,
+    `DTSTAMP:${dt(new Date())}`,
+    `DTSTART:${dt(start)}`,
+    `DTEND:${dt(end)}`,
+    `SUMMARY:${escapeICS(summary)}`,
+    `DESCRIPTION:${escapeICS(description)}`,
+    `SEQUENCE:${sequence}`,
     organizerEmail
-      ? `ORGANIZER${
-          organizerName ? `;CN=${icsEscape(organizerName)}` : ""
-        }:MAILTO:${organizerEmail}`
+      ? `ORGANIZER;CN=${escapeICS(organizerName)}:mailto:${organizerEmail}`
       : "",
     attendeeEmail
-      ? `ATTENDEE;CN=${icsEscape(
-          attendeeName || "Invitado"
-        )};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:${attendeeEmail}`
+      ? `ATTENDEE;CN=${escapeICS(
+          attendeeName
+        )};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:${attendeeEmail}`
       : "",
-    method === "CANCEL" ? "STATUS:CANCELLED" : "STATUS:CONFIRMED",
-    "END:VEVENT",
-    "END:VCALENDAR",
+    url ? `URL:${url}` : "",
   ].filter(Boolean);
 
-  // Plegado de líneas y retorno CRLF
-  return foldICSLines(lines).join("\r\n");
-};
+  // VALARM por cada “minutes before” (DISPLAY para máxima compatibilidad)
+  for (const m of alarmsMinutes || []) {
+    const n = Number(m);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    lines.push(
+      "BEGIN:VALARM",
+      "ACTION:DISPLAY",
+      `DESCRIPTION:${escapeICS("Recordatorio de cita")}`,
+      `TRIGGER:-PT${n}M`,
+      "END:VALARM"
+    );
+  }
+
+  lines.push("END:VEVENT", "END:VCALENDAR");
+
+  return lines.join("\r\n");
+}
+
+// Helper (por si no lo tenías ya)
+function escapeICS(text = "") {
+  return String(text)
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
